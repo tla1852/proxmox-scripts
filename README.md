@@ -40,3 +40,22 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 
 À la fin, le script affiche l'URL (`http://<ip>:3000`) et le `SETUP_BOOTSTRAP_TOKEN`
 (aussi dans `/root/bookorbit-bootstrap.txt` du container) pour le premier setup.
+
+## create-lxc-protonbridge.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus le **Proton Mail Bridge** headless
+(image communautaire [`shenxn/protonmail-bridge`](https://github.com/shenxn/protonmail-bridge-docker)),
+pour réexposer en IMAP/SMTP local une boîte Proton chiffrée (automatisation n8n, etc.) :
+
+- Image pré-tirée + volume persistant `protonmail`, helper `/root/start-bridge.sh`
+- IMAP `143` + SMTP `25` publiés sur l'IP LAN du LXC — **réseau interne uniquement, jamais via reverse proxy**
+- Disque 8 Go, RAM 1024 Mo, 1 cœur (le bridge est léger)
+- **Prérequis** : plan Proton **payant** (Bridge indisponible en Free)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-protonbridge.sh)
+```
+
+⚠️ Le login Proton (compte + 2FA) ne peut pas être scripté : le script imprime un
+**runbook** pour l'étape `init` interactive (à faire une fois), qui fournit aussi le
+**mot de passe Bridge** (≠ mot de passe Proton) à reporter dans la credential IMAP.
