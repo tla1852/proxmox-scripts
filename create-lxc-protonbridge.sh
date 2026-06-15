@@ -5,8 +5,8 @@
 # Dérivé byte-pour-byte du socle tla1852/proxmox-scripts/create-lxc.sh.
 # Socle inviolable : DHCP, unprivileged=1, nesting=1, Docker, user "thibault" (sudo+docker), root verrouillé.
 # Couche applicative ajoutée APRÈS le verrouillage root (voir frontière plus bas) :
-#   déploiement de l'image communautaire shenxn/protonmail-bridge, volume persistant,
-#   IMAP (143) + SMTP (25) exposés sur l'IP LAN du LXC (n8n tourne dans un autre LXC).
+#   build d'une image patchée (shenxn/protonmail-bridge + libfido2), volume persistant,
+#   IMAP (143) exposé sur l'IP LAN du LXC (n8n tourne dans un autre LXC ; SMTP non publié).
 #
 # ⚠️ Le login Proton (compte + 2FA) NE PEUT PAS être scripté → étape `init` manuelle, UNE fois.
 #    Voir le runbook imprimé en fin de script.
