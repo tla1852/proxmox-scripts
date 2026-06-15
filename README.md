@@ -47,10 +47,12 @@ Même base que `create-lxc.sh`, mais déploie en plus le **Proton Mail Bridge** 
 (image communautaire [`shenxn/protonmail-bridge`](https://github.com/shenxn/protonmail-bridge-docker)),
 pour réexposer en IMAP/SMTP local une boîte Proton chiffrée (automatisation n8n, etc.) :
 
-- Image pré-tirée + volume persistant `protonmail`, helper `/root/start-bridge.sh`
-- IMAP `143` + SMTP `25` publiés sur l'IP LAN du LXC — **réseau interne uniquement, jamais via reverse proxy**
+- Image **patchée** (`shenxn/protonmail-bridge` + `libfido2-1`) buildée sur place, volume persistant `protonmail`, helper `/root/start-bridge.sh`
+- IMAP `143` publié sur l'IP LAN du LXC — **réseau interne uniquement, jamais via reverse proxy**. SMTP `25` non publié (inutile ici, n8n lit l'IMAP ; port souvent déjà pris par un MTA local) — décommenter dans le helper si l'envoi est requis.
 - Disque 8 Go, RAM 1024 Mo, 1 cœur (le bridge est léger)
 - **Prérequis** : plan Proton **payant** (Bridge indisponible en Free)
+
+> Pourquoi libfido2 : après l'`init`, le bridge s'auto-update vers une version qui dépend de `libfido2.so.1`, absente de l'image brute → crash `cannot open shared object file`. L'image patchée corrige ça.
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-protonbridge.sh)

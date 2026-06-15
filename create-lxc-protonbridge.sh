@@ -119,21 +119,37 @@ pct exec "$VMID" -- passwd -l root >/dev/null
 # ===================================================================================
 # Le socle fournit déjà Docker + nesting. On prépare le Proton Mail Bridge headless.
 # Image communautaire de référence (2026) : shenxn/protonmail-bridge.
+#
+# ⚠️ L'image brute crashe après l'init : le bridge s'auto-update vers une version
+#    récente (v3.25+) qui dépend de libfido2, absente de l'image
+#    (« libfido2.so.1: cannot open shared object file »). On build donc une image
+#    dérivée qui ajoute libfido2-1.
+#
 # Le login Proton (2FA) ne peut pas être scripté → on ne démarre PAS encore le service ;
-# on pré-tire l'image, crée le volume persistant, et dépose un helper de démarrage.
+# on build l'image patchée, crée le volume persistant, et dépose un helper de démarrage.
 
-BRIDGE_IMAGE="shenxn/protonmail-bridge"
+BASE_IMAGE="shenxn/protonmail-bridge"
+BRIDGE_IMAGE="protonmail-bridge:fido"   # image patchée (base + libfido2)
 BRIDGE_VOLUME="protonmail"
 LXC_IP="$(pct exec "$VMID" -- hostname -I | awk '{print $1}')"
 
-info "Pré-téléchargement de l'image ${BRIDGE_IMAGE}..."
-pct exec "$VMID" -- docker pull "${BRIDGE_IMAGE}" >/dev/null
+info "Build de l'image patchée ${BRIDGE_IMAGE} (base ${BASE_IMAGE} + libfido2)..."
+pct exec "$VMID" -- bash -c "mkdir -p /root/bridge-build
+cat > /root/bridge-build/Dockerfile <<EOF
+FROM ${BASE_IMAGE}
+RUN apt-get update && apt-get install -y --no-install-recommends libfido2-1 \\
+    && rm -rf /var/lib/apt/lists/*
+EOF
+docker build -t ${BRIDGE_IMAGE} /root/bridge-build >/dev/null"
 
 info "Création du volume persistant ${BRIDGE_VOLUME}..."
 pct exec "$VMID" -- docker volume create "${BRIDGE_VOLUME}" >/dev/null
 
 # Helper de démarrage du service (à lancer APRÈS le login init manuel).
-# IMAP 143 + SMTP 25 publiés sur l'IP LAN du LXC (n8n est dans un autre LXC).
+# IMAP 143 publié sur l'IP LAN du LXC (n8n est dans un autre LXC).
+# SMTP 25 NON publié : non utilisé (n8n lit seulement l'IMAP) et le port 25 est
+# souvent déjà pris par un MTA local. Décommenter la ligne -p si l'envoi est requis
+# (libérer 25 au préalable, ou remapper ex. -p 1025:25).
 # ⚠️ Réseau interne uniquement — ne JAMAIS router ces ports via un reverse proxy.
 info "Dépôt du helper /root/start-bridge.sh dans le container..."
 pct exec "$VMID" -- bash -c "cat > /root/start-bridge.sh <<'EOS'
@@ -143,9 +159,8 @@ docker rm -f protonmail-bridge 2>/dev/null || true
 docker run -d --name protonmail-bridge --restart=unless-stopped \\
     -v ${BRIDGE_VOLUME}:/root \\
     -p 143:143/tcp \\
-    -p 25:25/tcp \\
     ${BRIDGE_IMAGE}
-echo 'Bridge démarré. IMAP 143 / SMTP 25 exposés sur l'\\''IP LAN du LXC.'
+echo 'Bridge démarré. IMAP 143 exposé sur l'\\''IP LAN du LXC.'
 EOS
 chmod +x /root/start-bridge.sh"
 
@@ -162,7 +177,8 @@ cat <<RUNBOOK
   1. Entrer dans le container :
        pct enter ${VMID}
 
-  2. Lancer l'init interactif (login + 2FA) sur le volume persistant :
+  2. Lancer l'init interactif (login + 2FA) sur le volume persistant
+     (image patchée ${BRIDGE_IMAGE}, sinon crash libfido2) :
        docker run --rm -it -v ${BRIDGE_VOLUME}:/root ${BRIDGE_IMAGE} init
 
      Dans le shell du bridge :
