@@ -59,3 +59,22 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 ⚠️ Le login Proton (compte + 2FA) ne peut pas être scripté : le script imprime un
 **runbook** pour l'étape `init` interactive (à faire une fois), qui fournit aussi le
 **mot de passe Bridge** (≠ mot de passe Proton) à reporter dans la credential IMAP.
+
+## create-lxc-ludotheque.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus la **Ludothèque**
+(gestion de collection de jeux vidéo, [tla1852/ludotheque](https://github.com/tla1852/ludotheque)
+en Docker Compose) :
+
+- Clone le repo **privé** dans `/opt/ludotheque`, génère `.env`, `docker compose up -d --build`
+- Demande le **PAT GitHub** (lecture, repo privé), `ADMIN_PASSWORD` et les clés API
+  (`STEAM_API_KEY`, `IGDB_CLIENT_ID/SECRET`, `RAWG_API_KEY` — toutes optionnelles)
+- Le token est retiré du remote git après le clone
+- Disque 12 Go (headroom build image), RAM conseillée 2048 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-ludotheque.sh)
+```
+
+À la fin, le script affiche l'URL (`http://<ip>:3000`, login `admin`). Reverse proxy
+cible : `ludo.survivalmode.familyds.org`.
