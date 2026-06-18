@@ -78,3 +78,27 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 
 À la fin, le script affiche l'URL (`http://<ip>:3000`, login `admin`). Reverse proxy
 cible : `ludo.survivalmode.familyds.org`.
+
+## create-lxc-l5.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **L5**
+(hub pro de Lagrange Equilibrium, [tla1852/l5](https://github.com/tla1852/l5) —
+Fastify + PostgreSQL 15 en Docker Compose) :
+
+- Clone le repo **privé** dans `/opt/l5`, génère `.env`, `docker compose up -d --build`
+  (l'api migre le schéma au démarrage, après le healthcheck PostgreSQL)
+- Demande le **PAT GitHub** (lecture, repo privé) et, optionnels, `ANTHROPIC_API_KEY`,
+  `PROMETHEUS_URL`, `GRAFANA_URL`. Les secrets internes (`POSTGRES_PASSWORD`,
+  `AUTH_SECRET`, `N8N_WEBHOOK_SECRET`, `GRAFANA_WEBHOOK_SECRET`) sont **auto-générés**
+  (`openssl rand`) et le token est retiré du remote git après le clone
+- `BANK_SOURCE=csv` par défaut : déposer les exports CSV Shine dans `/opt/l5/data/shine`
+- Disque 16 Go (image Docker + données PostgreSQL), RAM conseillée 4096 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-l5.sh)
+```
+
+À la fin, le script affiche l'URL de santé (`http://<ip>:3000/health`).
+
+⚠️ L5 contient des données client + finance + identifiants : à exposer **uniquement**
+sur le tier Headscale isolé, **jamais en public-facing**.
