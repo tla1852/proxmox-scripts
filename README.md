@@ -79,6 +79,52 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 À la fin, le script affiche l'URL (`http://<ip>:3000`, login `admin`). Reverse proxy
 cible : `ludo.survivalmode.familyds.org`.
 
+## create-lxc-headscale.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **Headscale**, le plan de
+contrôle Tailscale self-hosted (plan privé du homelab — cf.
+[tla1852/homelab-secu](https://github.com/tla1852/homelab-secu), phase 2) :
+
+- Image Docker **épinglée** (`headscale/headscale:0.23.0`) ; la config est dérivée
+  du `config-example.yaml` de cette version exacte (zéro dérive de schéma), puis
+  patchée : `server_url`, `listen_addr=0.0.0.0:8080`, `base_domain`
+- Demande le domaine public (`server_url`, défaut `headscale.survivalmode.familyds.org`)
+  et le `base_domain` MagicDNS interne (défaut `ts.lan`)
+- Crée l'utilisateur tailnet `thibault` + une pré-auth key (réutilisable 24h) et
+  imprime le **runbook d'enrôlement** (appareils + paquet Tailscale du NAS Synology)
+- Disque 8 Go, RAM 1024 Mo, 1 cœur (SQLite, plan de contrôle léger)
+- À construire **avant** l'edge Caddy (qui reverse-proxie vers son `:8080`)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-headscale.sh)
+```
+
+⚠️ L'enrôlement n'aboutit qu'une fois l'edge Caddy en place (HTTPS public sur
+`server_url`) + DNS + forwards routeur. Voir le runbook imprimé.
+
+## create-lxc-caddy.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **Caddy en edge** — la porte
+d'entrée publique HTTPS du homelab (cf. homelab-secu, phase 1) :
+
+- Image Docker `caddy:2.8`, reverse proxy + Let's Encrypt **HTTP-01**
+- Demande : email ACME, domaine + upstream Jellyfin (seul service applicatif
+  public), domaine + upstream du plan de contrôle Headscale
+- Génère le `Caddyfile` (vhosts Jellyfin + Headscale) et le `docker-compose.yml`,
+  publie 80/443 (TCP) + 443/UDP
+- Disque 8 Go, RAM 1024 Mo, 1 cœur
+- À construire **après** le LXC Headscale (il faut son IP). Vit d'abord sur
+  `vmbr0` ; bascule en **VLAN DMZ isolé + bouncer CrowdSec + geoblock** en phase 4
+  (build `xcaddy` custom, hors périmètre v1)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-caddy.sh)
+```
+
+**Prérequis réseau** : forward routeur 80/443 → IP de ce LXC (et plus vers le
+Synology) ; DNS `survivalmode.familyds.org` + `headscale.survivalmode.familyds.org`
+résolvant vers l'IP publique maison. Runbook imprimé en fin de script.
+
 ## create-lxc-l5.sh
 
 Même base que `create-lxc.sh`, mais déploie en plus **L5**
