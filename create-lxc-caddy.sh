@@ -131,8 +131,8 @@ info "Configuration de l'edge Caddy..."
 
 read -rp  "Email ACME (Let's Encrypt) [thibault@tlagrange.pro] : " ACME_EMAIL
 ACME_EMAIL="${ACME_EMAIL:-thibault@tlagrange.pro}"
-read -rp  "Domaine public Jellyfin [survivalmode.familyds.org] : " PUBLIC_DOMAIN
-PUBLIC_DOMAIN="${PUBLIC_DOMAIN:-survivalmode.familyds.org}"
+read -rp  "Domaine public Jellyfin [jellyfin.survivalmode.familyds.org] : " PUBLIC_DOMAIN
+PUBLIC_DOMAIN="${PUBLIC_DOMAIN:-jellyfin.survivalmode.familyds.org}"
 read -rp  "Upstream Jellyfin (host:port) [192.168.1.10:8096] : " JELLYFIN_UPSTREAM
 JELLYFIN_UPSTREAM="${JELLYFIN_UPSTREAM:-192.168.1.10:8096}"
 read -rp  "Domaine plan de contrôle Headscale [headscale.survivalmode.familyds.org] : " HS_DOMAIN
