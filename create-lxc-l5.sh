@@ -135,6 +135,12 @@ if [[ -z "${GITHUB_TOKEN:-}" ]]; then
 fi
 [[ -n "$GITHUB_TOKEN" ]] || err "PAT requis pour cloner le repo privé tla1852/l5."
 
+while true; do
+    read -rsp "Mot de passe de connexion à L5 (AUTH_PASSWORD)              : " L5_AUTH_PASSWORD; echo
+    read -rsp "Confirmation                                                : " L5_AUTH_PASSWORD2; echo
+    [[ -n "$L5_AUTH_PASSWORD" && "$L5_AUTH_PASSWORD" == "$L5_AUTH_PASSWORD2" ]] && break
+    echo "Mots de passe vides ou différents, on recommence."
+done
 read -rsp "ANTHROPIC_API_KEY (Entrée pour vide)                         : " ANTHROPIC_API_KEY || true; echo
 read -rp  "PROMETHEUS_URL [http://prometheus.lan:9090]                  : " PROMETHEUS_URL || true
 read -rp  "GRAFANA_URL [https://grafana.lan]                            : " GRAFANA_URL || true
@@ -156,6 +162,8 @@ pct exec "$VMID" -- bash -c "
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
 PORT=${PORT}
 AUTH_SECRET=${AUTH_SECRET}
+AUTH_PASSWORD=${L5_AUTH_PASSWORD}
+TZ=Europe/Paris
 ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
 N8N_WEBHOOK_SECRET=${N8N_WEBHOOK_SECRET}
 BANK_SOURCE=csv
@@ -167,7 +175,7 @@ ENV
     chmod 600 .env
     git remote set-url origin '$REPO_URL'   # retire le token du remote git
 "
-unset GITHUB_TOKEN ANTHROPIC_API_KEY PROMETHEUS_URL GRAFANA_URL \
+unset GITHUB_TOKEN ANTHROPIC_API_KEY PROMETHEUS_URL GRAFANA_URL L5_AUTH_PASSWORD L5_AUTH_PASSWORD2 \
       POSTGRES_PASSWORD AUTH_SECRET N8N_WEBHOOK_SECRET GRAFANA_WEBHOOK_SECRET
 
 info "Build + démarrage (docker compose)... la migration du schéma s'exécute au boot de l'api."
