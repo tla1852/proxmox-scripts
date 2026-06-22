@@ -4,7 +4,9 @@ Scripts de la zone management (cf. [tla1852/homelab-secu](https://github.com/tla
 
 ## nmap-watch.sh
 
-Surveille l'exposition réseau (par défaut l'IP publique via le DDNS). Tout port ouvert hors `EXPECTED` (défaut `443`) → alerte **critique** dans L5 ; conforme → **résolue**. Dédup par `externe_id = nmap:exposure:<cible>`.
+Découverte LAN + **ndiff** : scanne le sous-réseau (`SUBNET`, défaut `192.168.1.0/24`), compare au baseline précédent. Tout changement (nouvel hôte, nouveau port, disparition) → alerte **warning** dans L5, puis le baseline est mis à jour ; aucun changement → **résolue**. Dédup par `externe_id = nmap:lan-diff:<subnet>`.
+
+> L'exposition **publique** ne se teste pas d'ici (la Bbox ne fait pas de hairpin NAT) → c'est le rôle du **scanner externe GCP** (phase 6, reporté).
 
 ### Déploiement (sur un LXC management, ex. l5/superoutil — PAS la DMZ)
 
@@ -25,4 +27,4 @@ chmod 600 /opt/monitor/monitor.env
 ( crontab -l 2>/dev/null; echo "7 * * * * /opt/monitor/nmap-watch.sh >> /var/log/nmap-watch.log 2>&1" ) | crontab -
 ```
 
-Variables surchargeables (env ou `monitor.env`) : `TARGET`, `EXPECTED`, `PORTS`, `L5_URL`.
+Variables surchargeables (env ou `monitor.env`) : `SUBNET`, `PORTS`, `L5_URL`, `STATE_DIR`.
