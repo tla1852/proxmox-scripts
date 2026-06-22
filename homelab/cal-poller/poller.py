@@ -108,6 +108,25 @@ def from_caldav(out, seen, win_start, win_end):
                 continue
 
 
+def post_events(hook, secret, events, source_id=None, frm=None, to=None):
+    payload = {"events": events}
+    if source_id:
+        payload.update(source_id=source_id, **({"from": frm, "to": to} if frm and to else {}))
+    r = requests.post(hook, json=payload,
+                      headers={"Authorization": "Bearer " + secret}, timeout=30)
+    r.raise_for_status()
+    return r
+
+
+def l5_sources(hook, secret):
+    """Liste des calendriers gérés dans L5 (source de vérité)."""
+    base = hook.rsplit("/webhooks/", 1)[0]
+    r = requests.get(base + "/webhooks/cal-sources",
+                     headers={"Authorization": "Bearer " + secret}, timeout=20)
+    r.raise_for_status()
+    return r.json() or []
+
+
 def main():
     hook = env("L5_WEBHOOK_URL", required=True)
     secret = env("N8N_WEBHOOK_SECRET", required=True)
@@ -115,19 +134,40 @@ def main():
     future = int(env("WINDOW_FUTURE_DAYS", "90"))
     now = dt.datetime.now(UTC)
     win_start, win_end = now - dt.timedelta(days=past), now + dt.timedelta(days=future)
+    frm, to = win_start.isoformat(), win_end.isoformat()
 
+    # 1) Calendriers gérés dans L5 (chacun = un lien ICS, posté avec son source_id).
+    sources = []
+    try:
+        sources = l5_sources(hook, secret)
+    except Exception as e:
+        print(f"[cal-poller] liste des sources L5 indisponible: {e}", file=sys.stderr)
+
+    if sources:
+        total = 0
+        for s in sources:
+            out, seen = [], set()
+            try:
+                from_ics(s["url"], out, seen, win_start, win_end)
+            except Exception as e:
+                print(f"[cal-poller] source {s.get('nom')!r} ICS échec: {e}", file=sys.stderr)
+                continue
+            post_events(hook, secret, out, source_id=s["id"], frm=frm, to=to)
+            total += len(out)
+            print(f"[cal-poller] {s.get('nom')!r}: {len(out)} événements")
+        print(f"[cal-poller] mode=l5-sources {len(sources)} calendrier(s), {total} événements")
+        return
+
+    # 2) Fallback : variable CAL_ICS_URLS (bootstrap, sans source_id).
     out, seen = [], set()
     ics_urls = env("CAL_ICS_URLS")
-    mode = "ics" if ics_urls else "caldav"
+    mode = "ics-env" if ics_urls else "caldav"
     if ics_urls:
         from_ics(ics_urls, out, seen, win_start, win_end)
     else:
         from_caldav(out, seen, win_start, win_end)
-
-    r = requests.post(hook, json={"events": out},
-                      headers={"Authorization": "Bearer " + secret}, timeout=30)
+    r = post_events(hook, secret, out)
     print(f"[cal-poller] mode={mode} {len(out)} événements -> {r.status_code} {r.text[:200]}")
-    r.raise_for_status()
 
 
 if __name__ == "__main__":
