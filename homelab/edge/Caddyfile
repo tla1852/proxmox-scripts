@@ -1,0 +1,71 @@
+{
+	order crowdsec first
+	crowdsec {
+		api_url http://crowdsec:8080
+		api_key {env.CROWDSEC_BOUNCER_KEY}
+	}
+}
+
+# Snippet appliqué à chaque vhost public : blocage CrowdSec + log JSON
+# (le log alimente l'acquisition CrowdSec via /var/log/caddy/access.log).
+(prot) {
+	crowdsec
+	log {
+		output file /var/log/caddy/access.log
+		format json
+	}
+}
+
+# ===== Plan de contrôle Headscale =====
+headscale.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.96:8080
+}
+
+# ===== Jellyfin (média) =====
+media.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.50:8096
+}
+
+# ===== Foundry VTT =====
+jdr.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.58:30000
+}
+
+# ===== App vacances — front =====
+tp.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.98:80
+}
+
+# ===== App vacances — API =====
+api-tp.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.98:80
+}
+
+# ===== Blind test =====
+buzzer.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.78:8080
+}
+
+# ===== Seer (demandes média) =====
+recherche.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.41:5055
+}
+
+# ===== Bibliothèque =====
+bibli.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.42:3000
+}
+
+# ===== Pousse =====
+pousse.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.30:3000
+}
