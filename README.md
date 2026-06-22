@@ -60,6 +60,29 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 **runbook** pour l'étape `init` interactive (à faire une fois), qui fournit aussi le
 **mot de passe Bridge** (≠ mot de passe Proton) à reporter dans la credential IMAP.
 
+## create-lxc-ferroxide.sh
+
+Même base que `create-lxc.sh`, mais build **ferroxide**
+([`acheong08/ferroxide`](https://github.com/acheong08/ferroxide)), pont tiers qui
+réexpose l'agenda **Proton en CalDAV** (port `8081`) — la source du *miroir
+calendrier* de [tla1852/l5](https://github.com/tla1852/l5) :
+
+- Binaire Go (`go install …/ferroxide@latest` → `/usr/local/bin/ferroxide`), pas
+  d'image Docker officielle
+- Dépose un service systemd `ferroxide-caldav` **prêt mais non démarré** (l'`auth`
+  Proton interactive + 2FA doit précéder ; non scriptable)
+- Disque 8 Go, RAM 1024 Mo, 1 cœur (léger). Distinct du **Proton Mail Bridge**
+  (`create-lxc-protonbridge.sh`, qui ne fait qu'IMAP/SMTP)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-ferroxide.sh)
+```
+
+⚠️ Le login Proton (compte + 2FA) ne peut pas être scripté : le script imprime un
+**runbook** pour `ferroxide auth` (qui fournit le **bridge password** = mot de passe
+CalDAV), le démarrage du service et la vérification PROPFIND. Tier isolé, réseau
+interne uniquement — jamais public-facing.
+
 ## create-lxc-ludotheque.sh
 
 Même base que `create-lxc.sh`, mais déploie en plus la **Ludothèque**
