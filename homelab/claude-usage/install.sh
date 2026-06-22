@@ -10,14 +10,14 @@ ENVF=/etc/claude-usage.env
 RAW=https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/homelab/claude-usage
 
 # Utilisateur propriétaire de ~/.claude (logs Claude Code).
-read -rp "Utilisateur Claude Code (propriétaire de ~/.claude) [thibault] : " CC_USER
+read -rp "Utilisateur Claude Code (propriétaire de ~/.claude) [thibault] : " CC_USER < /dev/tty
 CC_USER="${CC_USER:-thibault}"
 CC_HOME=$(getent passwd "$CC_USER" | cut -d: -f6)
 [ -d "$CC_HOME/.claude/projects" ] || { echo "⚠ $CC_HOME/.claude/projects introuvable — usage vide tant que Claude Code n'a pas tourné sous $CC_USER"; }
 
-read -rp "URL L5 [http://192.168.1.43:3000] : " L5_URL
+read -rp "URL L5 [http://192.168.1.43:3000] : " L5_URL < /dev/tty
 L5_URL="${L5_URL:-http://192.168.1.43:3000}"
-read -rp "Secret webhook L5 (= N8N_WEBHOOK_SECRET de L5) : " L5_SECRET
+read -rp "Secret webhook L5 (= N8N_WEBHOOK_SECRET de L5) : " L5_SECRET < /dev/tty
 
 echo "→ Fichiers dans $DEST"
 sudo mkdir -p "$DEST"
