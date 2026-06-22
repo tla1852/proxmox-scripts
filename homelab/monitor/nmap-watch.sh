@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 #
-# nmap-watch.sh — découverte LAN + ndiff : alerte L5 sur nouvel hôte/port.
+# nmap-watch.sh — découverte LAN : alerte L5 sur nouvel hôte/port (sans ndiff).
 #
-# Scanne le sous-réseau LAN, compare au baseline précédent (ndiff). Tout
-# changement (nouvel hôte, nouveau port ouvert, disparition) -> alerte L5
-# (POST /webhooks/alerte, source "nmap"), puis le baseline est mis à jour
-# (évite la ré-alerte). Aucun changement -> alerte résolue.
+# Scanne le sous-réseau LAN, extrait la liste "ip port" des ports ouverts,
+# compare au baseline précédent (comm). Tout ajout/suppression -> alerte L5
+# (POST /webhooks/alerte, source "nmap"), puis baseline mis à jour. Aucun
+# changement -> alerte résolue.
 #
-# NB : l'exposition PUBLIQUE ne se teste pas d'ici (la Bbox ne fait pas de
-# hairpin NAT) -> c'est le rôle du scanner externe GCP (phase 6, reporté).
+# NB : l'exposition PUBLIQUE ne se teste pas d'ici (Bbox sans hairpin NAT)
+# -> rôle du scanner externe GCP (phase 6, reporté).
 #
-# Cron sur un LXC management (PAS la DMZ). Prérequis : nmap (fournit ndiff), curl.
-# Secret dans /opt/monitor/monitor.env (chmod 600) : SUPERVISION_WEBHOOK_SECRET=...
+# Cron sur LXC management (PAS la DMZ). Prérequis : nmap, curl.
+# Secret : /opt/monitor/monitor.env (chmod 600) -> SUPERVISION_WEBHOOK_SECRET=...
 #
 # cf. tla1852/homelab-secu (phase 6, surveillance interne).
 
@@ -26,11 +26,10 @@ L5_URL="${L5_URL:-http://192.168.1.43:3000}"
 STATE_DIR="${STATE_DIR:-/opt/monitor}"
 SECRET="${SUPERVISION_WEBHOOK_SECRET:?SUPERVISION_WEBHOOK_SECRET requis (monitor.env)}"
 
-command -v nmap  >/dev/null || { echo "nmap absent (apt-get install -y nmap)"; exit 1; }
-command -v ndiff >/dev/null || { echo "ndiff absent (paquet nmap)"; exit 1; }
+command -v nmap >/dev/null || { echo "nmap absent (apt-get install -y nmap)"; exit 1; }
 
-baseline="$STATE_DIR/lan-baseline.xml"
-current="$STATE_DIR/lan-current.xml"
+baseline="$STATE_DIR/lan-baseline.txt"
+current="$STATE_DIR/lan-current.txt"
 
 post() { # $1 severite  $2 statut  $3 message
   local msg; msg=$(printf '%s' "$3" | tr -cd '[:alnum:] .,:_/()-')
@@ -40,26 +39,36 @@ post() { # $1 severite  $2 statut  $3 message
     -o /dev/null -w "L5: %{http_code}\n"
 }
 
-# Scan (découverte d'hôtes active : seuls les hôtes up sont scannés).
-nmap --open -p "$PORTS" "$SUBNET" -oX "$current" >/dev/null 2>&1
+# Scan -> lignes "ip port" (ports ouverts), triées/dédupliquées.
+nmap --open -p "$PORTS" "$SUBNET" -oG - 2>/dev/null \
+  | grep "Ports:" \
+  | while read -r line; do
+      ip=$(printf '%s' "$line" | awk '{print $2}')
+      printf '%s' "$line" | grep -oE '[0-9]+/open' | sed 's#/open##' \
+        | while read -r p; do echo "$ip $p"; done
+    done | sort -u > "$current"
 
-hosts=$(grep -c "<status state=\"up\"" "$current" 2>/dev/null || echo 0)
+nb=$(wc -l < "$current" | tr -d ' ')
 
-# Premier passage : on pose le baseline.
+# Premier passage : baseline.
 if [ ! -f "$baseline" ]; then
   cp "$current" "$baseline"
-  post "info" "resolue" "Baseline LAN etablie sur ${SUBNET} (${hosts} hotes up)"
-  echo "Baseline établie (${hosts} hôtes)."
+  post "info" "resolue" "Baseline LAN etablie sur ${SUBNET} (${nb} services ouverts)"
+  echo "Baseline établie (${nb} services)."
   exit 0
 fi
 
-# ndiff : exit 1 si différences.
-if ndiff "$baseline" "$current" >/dev/null 2>&1; then
-  post "info" "resolue" "LAN conforme sur ${SUBNET} (${hosts} hotes up, aucun changement)"
-  echo "OK: aucun changement."
+added=$(comm -13 "$baseline" "$current" | paste -sd' ' -)
+removed=$(comm -23 "$baseline" "$current" | paste -sd' ' -)
+
+if [ -z "$added" ] && [ -z "$removed" ]; then
+  post "info" "resolue" "LAN conforme sur ${SUBNET} (${nb} services, aucun changement)"
+  echo "OK: aucun changement (${nb} services)."
 else
-  summary=$(ndiff "$baseline" "$current" 2>/dev/null | grep -E '^[+-]' | head -15 | paste -sd' ' -)
-  post "warning" "ouverte" "Changement reseau LAN sur ${SUBNET} : ${summary:-voir log}"
+  msg="Changement reseau LAN sur ${SUBNET}."
+  [ -n "$added" ]   && msg="${msg} Nouveaux: ${added}."
+  [ -n "$removed" ] && msg="${msg} Disparus: ${removed}."
+  post "warning" "ouverte" "$msg"
   cp "$current" "$baseline"   # nouvelle baseline -> pas de ré-alerte en boucle
-  echo "ALERTE: changement LAN -> ${summary}"
+  echo "ALERTE: ${msg}"
 fi
