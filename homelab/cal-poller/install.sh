@@ -34,25 +34,38 @@ python3 -m venv "$APP/venv"
 "$APP/venv/bin/pip" -q install caldav icalendar requests
 
 # ----- Secrets / config -----
+# Mode ICS RECOMMANDÉ : lien .ics partagé Proton. Contourne le bug ferroxide
+# (« could not get public keys for author ») qui bloque le CalDAV dès qu'un event
+# a un auteur sans email. Si fourni, le CalDAV n'est pas utilisé.
 echo
-read -rp "Adresse Proton (= user CalDAV) : " CU
-[[ -n "$CU" ]] || err "Adresse Proton requise."
-read -rsp "Bridge password ferroxide (sortie de 'ferroxide auth') : " CP; echo
-[[ -n "$CP" ]] || err "Bridge password requis."
+echo "Lien ICS Proton (Paramètres > Mes calendriers > Partager > lien) — RECOMMANDÉ."
+read -rp "URL ICS (plusieurs séparées par des virgules ; Entrée = CalDAV) : " ICS
+
+if [[ -z "$ICS" ]]; then
+    read -rp "Adresse Proton (= user CalDAV) : " CU
+    [[ -n "$CU" ]] || err "Adresse Proton requise (ou fournir une URL ICS)."
+    read -rsp "Bridge password ferroxide (sortie de 'ferroxide auth') : " CP; echo
+    [[ -n "$CP" ]] || err "Bridge password requis."
+fi
+
 read -rp "URL webhook L5 [http://192.168.1.43:3000/webhooks/calendrier] : " LU
 LU="${LU:-http://192.168.1.43:3000/webhooks/calendrier}"
 read -rsp "N8N_WEBHOOK_SECRET (dans /opt/l5/.env du LXC L5) : " NS; echo
 [[ -n "$NS" ]] || err "N8N_WEBHOOK_SECRET requis."
 
-cat > /etc/cal-poller.env <<EOF
-CALDAV_URL=http://127.0.0.1:8081/
-CALDAV_USER=${CU}
-CALDAV_PASS=${CP}
-L5_WEBHOOK_URL=${LU}
-N8N_WEBHOOK_SECRET=${NS}
-WINDOW_PAST_DAYS=7
-WINDOW_FUTURE_DAYS=90
-EOF
+{
+    echo "L5_WEBHOOK_URL=${LU}"
+    echo "N8N_WEBHOOK_SECRET=${NS}"
+    echo "WINDOW_PAST_DAYS=7"
+    echo "WINDOW_FUTURE_DAYS=90"
+    if [[ -n "$ICS" ]]; then
+        echo "CAL_ICS_URLS=${ICS}"
+    else
+        echo "CALDAV_URL=http://127.0.0.1:8081/"
+        echo "CALDAV_USER=${CU}"
+        echo "CALDAV_PASS=${CP}"
+    fi
+} > /etc/cal-poller.env
 chmod 600 /etc/cal-poller.env
 unset CP NS
 
