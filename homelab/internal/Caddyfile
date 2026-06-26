@@ -1,0 +1,63 @@
+{
+	acme_dns gandi {env.GANDI_API_TOKEN}
+}
+
+# Caddy interne (LXC 100, tailnet 100.64.0.2). Reverse-proxy des services privés
+# en *.ts.tlagrange.pro, certs Let's Encrypt via DNS-01 Gandi (de confiance
+# partout, aucun CA à installer). Image: caddy-gandi:2.10 (xcaddy + caddy-dns/gandi).
+# Reachable uniquement via le tailnet (Headscale). MagicDNS: voir extra-records.yaml.
+
+vault.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.81:8000
+}
+recette.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.24:8002
+}
+ludo.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.35:3000
+}
+homarr.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.37:7575
+}
+read.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.5:3000
+}
+n8n.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.57:5678
+}
+qbit.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.36:8090
+}
+radar.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.102:8310
+}
+pdf.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.79:8080
+}
+sonar.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.102:8989
+}
+wallos.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.71:80
+}
+
+# Backends HTTPS auto-signés -> skip-verify.
+proxmox.ts.tlagrange.pro {
+	reverse_proxy https://192.168.1.101:8006 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}
+dsm.ts.tlagrange.pro {
+	reverse_proxy https://100.64.0.3:5050 {
+		transport http {
+			tls_insecure_skip_verify
+		}
+	}
+}
+
+# L5 / hub
+telescope.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.43:3000
+}

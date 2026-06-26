@@ -1,0 +1,18 @@
+# MagicDNS Headscale — bloc dns.extra_records de /opt/headscale/config/config.yaml
+# (LXC 145). Chaque service privé *.ts.tlagrange.pro résout vers l'IP tailnet du
+# Caddy interne (100.64.0.2). À garder synchro avec internal/Caddyfile.
+extra_records:
+  - { name: "telescope.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "vault.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "recette.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "ludo.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "homarr.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "read.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "n8n.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "qbit.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "radar.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "pdf.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "sonar.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "wallos.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "proxmox.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "dsm.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
