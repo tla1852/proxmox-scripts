@@ -41,6 +41,19 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 À la fin, le script affiche l'URL (`http://<ip>:3000`) et le `SETUP_BOOTSTRAP_TOKEN`
 (aussi dans `/root/bookorbit-bootstrap.txt` du container) pour le premier setup.
 
+## update-lxc-bookorbit.sh
+
+Met à jour BookOrbit dans un CT existant vers la dernière release GitHub
+(rebuild pnpm + relance du service ; migrations DB via `ExecStartPre`). Préserve
+`.env` (secrets), les dossiers data et PostgreSQL. Idempotent (ne fait rien si
+déjà à jour) et fait un snapshot LXC avant MAJ par défaut.
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/update-lxc-bookorbit.sh) <VMID>
+```
+
+Options : `--force` (rebuild même si à jour), `--no-snapshot` (saute le snapshot).
+
 ## create-lxc-protonbridge.sh
 
 Même base que `create-lxc.sh`, mais déploie en plus le **Proton Mail Bridge** headless
