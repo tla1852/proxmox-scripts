@@ -121,13 +121,23 @@ pct exec "$VMID" -- passwd -l root >/dev/null
 # Image communautaire de référence (2026) : shenxn/protonmail-bridge.
 # Le login Proton (2FA) ne peut pas être scripté → on ne démarre PAS encore le service ;
 # on pré-tire l'image, crée le volume persistant, et dépose un helper de démarrage.
+#
+# ⚠️ L'image de base ne contient PAS libfido2 ; le binaire Bridge s'auto-update vers
+# une version qui en dépend et crashe au lancement ("libfido2.so.1: cannot open
+# shared object file"). On build donc une image locale dérivée qui l'embarque —
+# sinon le crash revient à chaque recréation du conteneur.
 
-BRIDGE_IMAGE="shenxn/protonmail-bridge"
+BRIDGE_BASE_IMAGE="shenxn/protonmail-bridge"
+BRIDGE_IMAGE="protonmail-bridge-fido2:local"
 BRIDGE_VOLUME="protonmail"
 LXC_IP="$(pct exec "$VMID" -- hostname -I | awk '{print $1}')"
 
-info "Pré-téléchargement de l'image ${BRIDGE_IMAGE}..."
-pct exec "$VMID" -- docker pull "${BRIDGE_IMAGE}" >/dev/null
+info "Build de l'image locale ${BRIDGE_IMAGE} (${BRIDGE_BASE_IMAGE} + libfido2)..."
+pct exec "$VMID" -- bash -c "mkdir -p /opt/protonbridge-image && cat > /opt/protonbridge-image/Dockerfile <<'EOS'
+FROM ${BRIDGE_BASE_IMAGE}
+RUN apt-get update && apt-get install -y --no-install-recommends libfido2-1 && rm -rf /var/lib/apt/lists/*
+EOS
+docker build -t ${BRIDGE_IMAGE} /opt/protonbridge-image" >/dev/null
 
 info "Création du volume persistant ${BRIDGE_VOLUME}..."
 pct exec "$VMID" -- docker volume create "${BRIDGE_VOLUME}" >/dev/null
