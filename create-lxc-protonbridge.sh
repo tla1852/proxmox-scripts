@@ -140,7 +140,7 @@ pct exec "$VMID" -- bash -c "cat > /root/start-bridge.sh <<'EOS'
 #!/usr/bin/env bash
 set -euo pipefail
 docker rm -f protonmail-bridge 2>/dev/null || true
-docker run -d --name protonmail-bridge --restart=unless-stopped \\
+docker run -d -i --name protonmail-bridge --restart=unless-stopped \\
     -v ${BRIDGE_VOLUME}:/root \\
     -p 143:143/tcp \\
     -p 25:25/tcp \\
