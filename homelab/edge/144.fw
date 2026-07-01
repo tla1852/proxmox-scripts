@@ -15,7 +15,7 @@ OUT ACCEPT -p udp -dport 67
 OUT ACCEPT -p udp -dport 53
 OUT ACCEPT -p tcp -dport 53
 
-# --- Sortant : les 9 upstreams autorisés (IP:port précis) ---
+# --- Sortant : les 10 upstreams autorisés (IP:port précis) ---
 OUT ACCEPT -dest 192.168.1.96 -p tcp -dport 8080
 OUT ACCEPT -dest 192.168.1.50 -p tcp -dport 8096
 OUT ACCEPT -dest 192.168.1.58 -p tcp -dport 30000
@@ -24,6 +24,9 @@ OUT ACCEPT -dest 192.168.1.78 -p tcp -dport 8080
 OUT ACCEPT -dest 192.168.1.41 -p tcp -dport 5055
 OUT ACCEPT -dest 192.168.1.42 -p tcp -dport 3000
 OUT ACCEPT -dest 192.168.1.30 -p tcp -dport 3000
+# L5 — uniquement pour le vhost optout.lagrange5.fr (route /optout/* only, cf. Caddyfile) ;
+# L5 lui-même reste tailnet-only, ce trou de firewall ne sert que ce chemin précis.
+OUT ACCEPT -dest 192.168.1.43 -p tcp -dport 3000
 
 # --- Sortant : tout le reste du LAN / tailnet = DENY (proxmox, NAS, autres) ---
 OUT DROP -dest 192.168.0.0/16
