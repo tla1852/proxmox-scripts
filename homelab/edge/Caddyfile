@@ -75,3 +75,16 @@ buzz.clashbuzz.app {
 	import prot
 	reverse_proxy 192.168.1.78:8080
 }
+
+# ===== L5 — lien opt-out public (WF5 prospection, RGPD) =====
+# Expose UNIQUEMENT /optout/* (page de désinscription, hors garde d'auth côté L5) ;
+# tout le reste répond 404. L5 lui-même reste tailnet-only (données client + finance,
+# jamais public-facing) — ce vhost est le seul point d'entrée public volontaire.
+# DNS : CNAME optout.lagrange5.fr -> survivalmode.familyds.org (délègue la DDNS).
+optout.lagrange5.fr {
+	import prot
+	route {
+		reverse_proxy /optout/* 192.168.1.43:3000
+		respond 404
+	}
+}
