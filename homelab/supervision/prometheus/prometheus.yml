@@ -1,0 +1,100 @@
+# Prometheus — supervision homelab + GCP.
+# Interne : pve-exporter (API Proxmox), node_exporter (hôte PVE), blackbox (HTTP).
+# GCP : stackdriver-exporter déployé sur Cloud Run (SA attaché, basic auth),
+#       scrapé en HTTPS — pas de clé de service account (org policy).
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Hôte Proxmox — détail matériel (CPU/RAM/disque/SMART via node_exporter natif)
+  - job_name: node-pve
+    static_configs:
+      - targets: ["192.168.1.101:9100"]
+        labels: { role: hyperviseur }
+
+  # API Proxmox — statut/CPU/RAM/disque des ~41 guests, sans agent
+  - job_name: pve
+    metrics_path: /pve
+    params:
+      module: [default]
+      cluster: ["1"]
+      node: ["1"]
+    static_configs:
+      - targets: ["192.168.1.101"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: pve-exporter:9221
+
+  # Probes HTTP des services LAN (via blackbox)
+  - job_name: blackbox-http
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - http://192.168.1.43:3000/health   # L5 / telescope
+          - http://192.168.1.37:7575          # Homarr
+          - http://192.168.1.50:8096          # Jellyfin
+          - http://192.168.1.57:5678          # n8n
+          - http://192.168.1.96:8080/health   # Headscale
+          - http://192.168.1.81:8000          # Vaultwarden
+          - http://192.168.1.35:3000          # Ludothèque
+          - http://192.168.1.5:3000           # Read
+          - http://192.168.1.36:8090          # qBittorrent
+          - http://192.168.1.102:8310         # Radarr
+          - http://192.168.1.102:8989         # Sonarr
+          - http://192.168.1.79:8080          # Stirling PDF
+          - http://192.168.1.71:80            # Wallos
+          - http://192.168.1.24:8002          # Recette
+    relabel_configs: &blackbox_relabel
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox:9115
+
+  # Probes HTTPS auto-signées (UI Proxmox)
+  - job_name: blackbox-https-insecure
+    metrics_path: /probe
+    params:
+      module: [http_2xx_insecure]
+    static_configs:
+      - targets:
+          - https://192.168.1.101:8006        # UI Proxmox
+    relabel_configs: *blackbox_relabel
+
+  # Probes des apps GCP publiques (vue "depuis l'extérieur du LAN" partielle :
+  # sortie via la Bbox). Module tolérant : up = répond en HTTP, même 4xx.
+  - job_name: blackbox-gcp-apps
+    metrics_path: /probe
+    params:
+      module: [http_any]
+    static_configs:
+      - targets:
+          - https://clashbuzz-server-prod-824477654962.europe-west1.run.app
+          - https://clashbuzz-server-preprod-824477654962.europe-west1.run.app
+          - https://clashbuzz-web-prod-824477654962.europe-west1.run.app
+          - https://clashbuzz-web-preprod-824477654962.europe-west1.run.app
+    relabel_configs: *blackbox_relabel
+
+  # Métriques internes GCP (Cloud Monitoring → stackdriver-exporter sur Cloud Run)
+  # Métriques exposées : stackdriver_cloud_run_revision_run_googleapis_com_*
+  - job_name: gcp-cloudrun
+    scheme: https
+    scrape_interval: 60s
+    scrape_timeout: 30s
+    basic_auth:
+      username: prometheus
+      password_file: /etc/prometheus/secrets/gcp_scrape_password
+    static_configs:
+      - targets: ["stackdriver-exporter-824477654962.europe-west1.run.app"]

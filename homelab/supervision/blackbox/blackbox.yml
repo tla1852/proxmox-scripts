@@ -1,0 +1,27 @@
+modules:
+  # Service sain : répond 2xx
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+
+  # Idem mais TLS auto-signé accepté (UI Proxmox, DSM…)
+  http_2xx_insecure:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+      tls_config:
+        insecure_skip_verify: true
+
+  # Service "vivant" : toute réponse HTTP compte (APIs qui renvoient 401/404 sur /)
+  http_any:
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+      valid_status_codes: [200, 201, 204, 301, 302, 307, 308, 400, 401, 403, 404]

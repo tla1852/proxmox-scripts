@@ -1,0 +1,146 @@
+# Règles d'alerte de base (provisionnées). Les suivantes se créent dans l'UI
+# Grafana (dossier Supervision) — elles partent toutes vers le contact point L5.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: homelab-core
+    folder: Supervision
+    interval: 1m
+    rules:
+      - uid: sup-target-down
+        title: Cible Prometheus down (exporter ou scrape KO)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: up
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "Cible {{ $labels.job }}/{{ $labels.instance }} injoignable depuis 5 min"
+
+      - uid: sup-probe-down
+        title: Service HTTP down (probe blackbox)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: probe_success
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "Service {{ $labels.instance }} ne répond plus depuis 5 min"
+
+      - uid: sup-guest-down
+        title: Guest Proxmox down (LXC/VM)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              # pve_up = 1 si le guest tourne. Exclure ici les guests
+              # volontairement arrêtés si ça devient bruyant : {id!~"lxc/103|..."}
+              expr: pve_up
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [1] }
+        for: 10m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "Guest Proxmox {{ $labels.id }} arrêté depuis 10 min"
+
+      - uid: sup-disk-pve
+        title: Disque hôte Proxmox presque plein
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 600, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: node_filesystem_avail_bytes{mountpoint="/",fstype!="tmpfs"} / node_filesystem_size_bytes{mountpoint="/",fstype!="tmpfs"}
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: lt, params: [0.10] }
+        for: 15m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: warning }
+        annotations:
+          summary: "Moins de 10% libre sur / de l'hôte Proxmox"
+
+      - uid: sup-cloudrun-5xx
+        title: Erreurs 5xx sur Cloud Run (clashbuzz)
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 1200, to: 0 }
+            datasourceUid: prometheus
+            model:
+              expr: sum by (service_name) (rate(stackdriver_cloud_run_revision_run_googleapis_com_request_count{response_code_class="5xx"}[15m]))
+              instant: true
+              refId: A
+          - refId: C
+            relativeTimeRange: { from: 0, to: 0 }
+            datasourceUid: __expr__
+            model:
+              type: threshold
+              expression: A
+              refId: C
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+        for: 5m
+        noDataState: OK
+        execErrState: Error
+        labels: { severity: critical }
+        annotations:
+          summary: "5xx en cours sur {{ $labels.service_name }} (Cloud Run)"

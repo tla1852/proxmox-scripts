@@ -1,0 +1,24 @@
+# Contact point L5 : toutes les alertes Grafana partent vers le webhook
+# POST /webhooks/grafana de L5 (table `alerte` → page Supervision + home).
+# SUPERVISION_WEBHOOK_SECRET est injecté via l'environnement du conteneur.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: L5
+    receivers:
+      - uid: l5-webhook
+        type: webhook
+        settings:
+          url: http://192.168.1.43:3000/webhooks/grafana
+          httpMethod: POST
+          authorization_scheme: Bearer
+          authorization_credentials: $SUPERVISION_WEBHOOK_SECRET
+
+policies:
+  - orgId: 1
+    receiver: L5
+    group_by: ["grafana_folder", "alertname"]
+    group_wait: 30s
+    group_interval: 5m
+    repeat_interval: 4h

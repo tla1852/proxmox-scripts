@@ -1,0 +1,53 @@
+# Stack de supervision homelab — Prometheus + Grafana + exporters.
+# Moteur du module Supervision de L5 (L5 = surface : tuiles via l'API
+# Prometheus, panels Grafana embarqués, alertes via webhook Grafana → L5).
+services:
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=90d
+    ports:
+      - "9090:9090"          # requêtes des tuiles L5 (LAN)
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./secrets/gcp_scrape_password:/etc/prometheus/secrets/gcp_scrape_password:ro
+      - prom_data:/prometheus
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    restart: unless-stopped
+    ports:
+      - "3000:3000"          # upstream du vhost grafana.ts.tlagrange.pro
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD}
+      GF_SERVER_ROOT_URL: https://grafana.ts.tlagrange.pro
+      # Embed des panels dans L5 (iframe, lecture seule, exposition tailnet only)
+      GF_SECURITY_ALLOW_EMBEDDING: "true"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      # Injecté dans provisioning/alerting/contact-l5.yml
+      SUPERVISION_WEBHOOK_SECRET: ${SUPERVISION_WEBHOOK_SECRET}
+      TZ: Europe/Paris
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+
+  pve-exporter:
+    image: prompve/prometheus-pve-exporter:latest
+    restart: unless-stopped
+    # pas de port publié : scrapé par prometheus sur le réseau compose
+    volumes:
+      - ./secrets/pve.yml:/etc/prometheus/pve.yml:ro
+
+  blackbox:
+    image: prom/blackbox-exporter:v0.25.0
+    restart: unless-stopped
+    volumes:
+      - ./blackbox/blackbox.yml:/etc/blackbox_exporter/config.yml:ro
+
+volumes:
+  prom_data:
+  grafana_data:

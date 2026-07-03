@@ -184,3 +184,29 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 
 ⚠️ L5 contient des données client + finance + identifiants : à exposer **uniquement**
 sur le tier Headscale isolé, **jamais en public-facing**.
+
+## create-lxc-supervision.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus la **stack de supervision**
+(Prometheus + Grafana + pve-exporter + blackbox-exporter en Docker Compose) —
+le moteur du module Supervision de L5. Voir
+[`homelab/supervision/`](homelab/supervision/) pour l'architecture complète.
+
+- Installe `prometheus-node-exporter` **sur l'hôte PVE** (port 9100)
+- Crée l'utilisateur API `monitoring@pve` + token `supervision` (rôle **PVEAuditor**,
+  lecture seule, token régénéré à chaque run) pour pve-exporter
+- Clone ce repo dans `/opt/proxmox-scripts`, génère `.env` + `secrets/`,
+  `docker compose up -d` depuis `homelab/supervision/`
+- Demande : mot de passe admin Grafana, secret webhook L5
+  (`GRAFANA_WEBHOOK_SECRET` de `/opt/l5/.env`), mot de passe de scrape GCP
+- GCP : métriques Cloud Monitoring via un `stackdriver-exporter` hébergé
+  **dans Cloud Run** (pas de clé SA, org policy) — scrapé en HTTPS + basic auth
+- Alerting : contact point + 5 règles provisionnés → webhook L5 → page Supervision
+- Disque 16 Go (TSDB 90 j), RAM conseillée 2048 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-supervision.sh)
+```
+
+À la fin, le script affiche les URLs Prometheus/Grafana et les étapes post-install
+(vhost `grafana.ts.tlagrange.pro`, `PROMETHEUS_URL`/`GRAFANA_URL` dans L5, dashboards).
