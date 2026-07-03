@@ -51,7 +51,6 @@ scrape_configs:
           - http://192.168.1.5:3000           # Read
           - http://192.168.1.36:8090          # qBittorrent
           - http://192.168.1.102:8310         # Radarr
-          - http://192.168.1.102:8989         # Sonarr
           - http://192.168.1.79:8080          # Stirling PDF
           - http://192.168.1.71:80            # Wallos
           - http://192.168.1.24:8002          # Recette
@@ -65,6 +64,16 @@ scrape_configs:
         target_label: instance
       - target_label: __address__
         replacement: blackbox:9115
+
+  # Services LAN derrière auth : toute réponse HTTP = vivant (401 compris)
+  - job_name: blackbox-http-authed
+    metrics_path: /probe
+    params:
+      module: [http_any]
+    static_configs:
+      - targets:
+          - http://192.168.1.102:8989         # Sonarr (401 sans login)
+    relabel_configs: *blackbox_relabel
 
   # Probes HTTPS auto-signées (UI Proxmox)
   - job_name: blackbox-https-insecure

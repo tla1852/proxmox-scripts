@@ -89,7 +89,13 @@ PVE
 GRAFANA_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
 SUPERVISION_WEBHOOK_SECRET=${SUPERVISION_WEBHOOK_SECRET}
 ENV
-    chmod 600 .env secrets/pve.yml secrets/gcp_scrape_password
+    chmod 600 .env
+    # Les conteneurs tournent en non-root : prometheus = nobody (65534),
+    # pve-exporter = user applicatif. Token PVEAuditor lecture seule et CT
+    # mono-usage → lisible localement, acceptable.
+    chown 65534:65534 secrets/gcp_scrape_password
+    chmod 400 secrets/gcp_scrape_password
+    chmod 644 secrets/pve.yml
 "
 unset GRAFANA_ADMIN_PASSWORD GRAFANA_ADMIN_PASSWORD2 SUPERVISION_WEBHOOK_SECRET \
       GCP_SCRAPE_PASSWORD PVE_TOKEN_VALUE
