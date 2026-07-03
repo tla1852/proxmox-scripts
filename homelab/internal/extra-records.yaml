@@ -3,6 +3,7 @@
 # Caddy interne (100.64.0.2). À garder synchro avec internal/Caddyfile.
 extra_records:
   - { name: "telescope.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "grafana.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "vault.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "recette.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "ludo.ts.tlagrange.pro", type: A, value: "100.64.0.2" }

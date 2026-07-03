@@ -61,3 +61,8 @@ dsm.ts.tlagrange.pro {
 telescope.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.43:3000
 }
+
+# Supervision (Grafana, CT 103)
+grafana.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.46:3000
+}
