@@ -30,6 +30,14 @@ Le script :
 - clone ce repo dans le CT (`/opt/proxmox-scripts`) et lance `docker compose up -d`
   depuis `homelab/supervision/`.
 
+La couche applicative vit dans [`setup-app.sh`](setup-app.sh) — **relançable seule**
+sur un CT existant si le run a échoué en cours de route (détecte un node_exporter
+déjà présent sur :9100 au lieu de planter) :
+
+```
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/homelab/supervision/setup-app.sh) <VMID>
+```
+
 Secrets demandés :
 - **Secret webhook L5** : `pct exec <CTID_L5> -- grep GRAFANA_WEBHOOK_SECRET /opt/l5/.env`
 - **Mot de passe scrape GCP** : généré lors du déploiement du stackdriver-exporter
