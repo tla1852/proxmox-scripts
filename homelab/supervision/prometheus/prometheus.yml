@@ -55,6 +55,9 @@ scrape_configs:
           - http://192.168.1.79:8080          # Stirling PDF
           - http://192.168.1.71:80            # Wallos
           - http://192.168.1.24:8002          # Recette
+          # Domaines custom clashbuzz (prod, cert Google-managed)
+          - https://api.clashbuzz.app/health
+          - https://buzz.clashbuzz.app/
     relabel_configs: &blackbox_relabel
       - source_labels: [__address__]
         target_label: __param_target
