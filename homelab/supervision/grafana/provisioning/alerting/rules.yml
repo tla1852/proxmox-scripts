@@ -70,9 +70,9 @@ groups:
             relativeTimeRange: { from: 600, to: 0 }
             datasourceUid: prometheus
             model:
-              # pve_up = 1 si le guest tourne. Exclure ici les guests
-              # volontairement arrêtés si ça devient bruyant : {id!~"lxc/103|..."}
-              expr: pve_up
+              # pve_up = 1 si le guest tourne. Exclusions = guests volontairement
+              # arrêtés (qemu/101, qemu/110).
+              expr: pve_up{id!~"qemu/101|qemu/110"}
               instant: true
               refId: A
           - refId: C
