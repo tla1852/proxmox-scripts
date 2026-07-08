@@ -185,6 +185,35 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 ⚠️ L5 contient des données client + finance + identifiants : à exposer **uniquement**
 sur le tier Headscale isolé, **jamais en public-facing**.
 
+## create-lxc-appflowy.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **AppFlowy-Cloud**
+([AppFlowy-IO/AppFlowy-Cloud](https://github.com/AppFlowy-IO/AppFlowy-Cloud),
+remplaçant self-hosted de Notion) : nginx, PostgreSQL 16 + pgvector, Redis,
+MinIO, GoTrue, appflowy_cloud, appflowy_worker, admin_frontend, appflowy_web.
+Le service `ai` (clé OpenAI requise) est **exclu** du `docker compose up`.
+
+- Clone le repo public dans `/opt/appflowy-cloud`, `.env` dérivé de `deploy.env`
+- URL publique `appflowy.ts.tlagrange.pro` (TLS terminé par le Caddy interne,
+  lien Caddy → nginx en HTTP clair sur `:80`) : `SCHEME=https`, `WS_SCHEME=wss`
+- Secrets auto-générés (`POSTGRES_PASSWORD`, `GOTRUE_JWT_SECRET`, clés S3 MinIO) ;
+  demande email + mot de passe **admin GoTrue** (console `/console`)
+- Auth sans SMTP : `GOTRUE_MAILER_AUTOCONFIRM=true` + `GOTRUE_DISABLE_SIGNUP=true`
+  (comptes créés via la console admin)
+- Disque 24 Go, RAM conseillée 6144 Mo, 2 cœurs
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-appflowy.sh)
+```
+
+À la fin : ajouter le vhost `appflowy.ts.tlagrange.pro → <ip>:80` dans
+[`homelab/internal/Caddyfile`](homelab/internal/Caddyfile) (bloc pré-rempli en
+commentaire, avec `request_body 2GB` pour l'import Notion) + l'extra-record
+Headscale, puis pointer les clients (desktop/mobile) sur
+`https://appflowy.ts.tlagrange.pro` (Settings → Cloud → Self-hosted).
+
+⚠️ Accès **uniquement via le tailnet** — jamais de public-facing.
+
 ## create-lxc-supervision.sh
 
 Même base que `create-lxc.sh`, mais déploie en plus la **stack de supervision**

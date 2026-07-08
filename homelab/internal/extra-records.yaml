@@ -17,3 +17,4 @@ extra_records:
   - { name: "wallos.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "proxmox.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "dsm.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "appflowy.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
