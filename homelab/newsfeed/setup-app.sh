@@ -70,7 +70,8 @@ pct exec "$VMID" -- su - thibault -c "cd '${APP_DIR}' && npm install --no-audit 
 info "Installation du service systemd..."
 pct exec "$VMID" -- bash -c "cp '${APP_DIR}/deploy/newsfeed.service' /etc/systemd/system/newsfeed.service
     systemctl daemon-reload
-    systemctl enable --now newsfeed"
+    systemctl enable newsfeed
+    systemctl restart newsfeed"
 
 # ----- Vérification -----
 sleep 3
