@@ -74,3 +74,8 @@ appflowy.ts.tlagrange.pro {
 grafana.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.46:3000
 }
+
+# Newsfeed — veille tech & science (CT 112)
+veille.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.84:3000
+}

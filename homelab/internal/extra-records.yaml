@@ -18,3 +18,4 @@ extra_records:
   - { name: "proxmox.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "dsm.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "appflowy.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "veille.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
