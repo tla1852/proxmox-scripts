@@ -53,7 +53,15 @@ attaché (rôle `roles/monitoring.viewer`). Auth entrante = basic auth
 user `prometheus`). Prometheus le scrape en HTTPS toutes les 60 s.
 
 - URL : `https://stackdriver-exporter-824477654962.europe-west1.run.app`
-- Métriques : `stackdriver_cloud_run_revision_run_googleapis_com_*`
+- Métriques : `stackdriver_cloud_run_revision_run_googleapis_com_request_count`
+  uniquement. L'exporter est volontairement restreint
+  (`--monitoring.metrics-type-prefixes=run.googleapis.com/request_count`) :
+  le préfixe entier `run.googleapis.com` = ~50 appels API Monitoring par
+  scrape → ~2,2 M appels/mois → ~11 $/mois au-delà du 1 M gratuit, pour des
+  métriques que Grafana n'affichait pas. Restreint : ~130 k/mois → 0 €.
+- Ajouter une métrique aux dashboards : étendre la liste (séparateur virgule)
+  avec le type exact, ex. `run.googleapis.com/container/billable_instance_time`
+  — jamais le préfixe entier.
 - Ajouter un projet GCP : donner `monitoring.viewer` au SA sur le nouveau projet
   puis ajouter `--google.project-id=<id>` aux args du service Cloud Run.
 
