@@ -79,3 +79,8 @@ grafana.ts.tlagrange.pro {
 veille.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.84:3000
 }
+
+# ClashBuzz Studio — admin bibliothèque de playlists (CT 114)
+clashbuzz-studio.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.6:8090
+}
