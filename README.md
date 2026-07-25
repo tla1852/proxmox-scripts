@@ -214,6 +214,38 @@ Headscale, puis pointer les clients (desktop/mobile) sur
 
 ⚠️ Accès **uniquement via le tailnet** — jamais de public-facing.
 
+## create-lxc-pioche.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **Supabase self-hosted**
+(compose officiel [`supabase/docker`](https://github.com/supabase/supabase/tree/master/docker)),
+le backend de **Pioche** ([tla1852/vacation-v2](https://github.com/tla1852/vacation-v2),
+appli de vacances + jeu Vir&Pioche) :
+
+- Clone sparse du dossier `docker/` officiel dans `/opt/pioche/supabase`, `.env`
+  dérivé de `.env.example`
+- Secrets **auto-générés côté hôte** : `POSTGRES_PASSWORD`, `JWT_SECRET`,
+  `SECRET_KEY_BASE`, `VAULT_ENC_KEY` + **`ANON_KEY`/`SERVICE_ROLE_KEY` signés
+  localement** (HS256 via openssl, exp ~20 ans)
+- Demande : login/mot de passe **Studio** (basic auth Kong) et, optionnel, le
+  **SMTP** — indispensable au magic link (seule méthode d'auth) ; configurable
+  plus tard dans le `.env` sinon
+- Redirections auth pré-remplies pour Expo : `SITE_URL=pioche://`,
+  `ADDITIONAL_REDIRECT_URLS=pioche://*,exp://*,http://localhost:8081/*`
+- Attend le schéma `auth` (GoTrue) puis applique les **migrations + seed**
+  (deck officiel Vir&Pioche) du repo vacation-v2
+- Disque 24 Go (~12 images Docker + données PostgreSQL), RAM conseillée 6144 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-pioche.sh)
+```
+
+À la fin, le script affiche l'URL de l'API/Studio (`http://<ip>:8000`) et
+l'`ANON_KEY` à mettre dans l'app Expo (`EXPO_PUBLIC_SUPABASE_ANON_KEY`).
+Accès Postgres direct via le pooler Supavisor : user `postgres.your-tenant-id`.
+
+⚠️ Réseau interne / tailnet uniquement (HTTP clair), jamais public-facing en
+l'état. Dès la bêta : sauvegardes Postgres externalisées hors homelab.
+
 ## create-lxc-supervision.sh
 
 Même base que `create-lxc.sh`, mais déploie en plus la **stack de supervision**
