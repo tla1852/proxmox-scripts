@@ -119,7 +119,14 @@ done
 info "anytype-cli healthy."
 
 info "Génération de la clé API 'homelab'..."
-APIKEY_OUT=$(pct exec "$VMID" -- bash -c "cd '$APP_DIR' && docker compose exec -T anytype-cli anytype auth apikey create homelab")
+# Après (re)démarrage, l'auto-login du compte bot prend quelques secondes :
+# « API error: application is not running » tant que le compte n'est pas chargé.
+APIKEY_OUT=""
+for i in $(seq 1 6); do
+    APIKEY_OUT=$(pct exec "$VMID" -- bash -c "cd '$APP_DIR' && docker compose exec -T anytype-cli anytype auth apikey create homelab" 2>&1) && break
+    [[ $i -eq 6 ]] && err "Création de clé API impossible après 1 min : $APIKEY_OUT"
+    sleep 10
+done
 
 APP_IP=$(pct exec "$VMID" -- hostname -I | awk '{print $1}')
 echo
