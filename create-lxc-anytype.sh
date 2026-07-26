@@ -152,7 +152,7 @@ info "Clone du repo + génération du .env (base .env.example, EXTERNAL_LISTEN_H
 pct exec "$VMID" -- bash -c "
     set -e
     export DEBIAN_FRONTEND=noninteractive
-    apt-get -y -qq install make >/dev/null
+    apt-get -y -qq install make jq >/dev/null
     rm -rf '$APP_DIR'
     git clone -q --depth 1 '$REPO_URL' '$APP_DIR'
     cd '$APP_DIR'
