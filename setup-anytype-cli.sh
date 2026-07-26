@@ -54,10 +54,10 @@ services:
       /bin/sh -c "
       if [ ! -f /root/.anytype/config.json ]; then
         echo 'Creating bot account...';
-        /app/anytype serve &
+        anytype serve &
         SERVER_PID=$$!;
         sleep 2;
-        /app/anytype auth create $${ANYTYPE_CLI_ACCOUNT_NAME} --network-config /etc/anytype/network.yml || true;
+        anytype auth create $${ANYTYPE_CLI_ACCOUNT_NAME} --network-config /etc/anytype/network.yml || true;
         echo 'Waiting for account initialization...';
         sleep 2;
         kill $$SERVER_PID 2>/dev/null || true;
@@ -115,7 +115,7 @@ done
 info "anytype-cli healthy."
 
 info "Génération de la clé API 'homelab'..."
-APIKEY_OUT=$(pct exec "$VMID" -- bash -c "cd '$APP_DIR' && docker compose exec -T anytype-cli /app/anytype auth apikey create homelab")
+APIKEY_OUT=$(pct exec "$VMID" -- bash -c "cd '$APP_DIR' && docker compose exec -T anytype-cli anytype auth apikey create homelab")
 
 APP_IP=$(pct exec "$VMID" -- hostname -I | awk '{print $1}')
 echo
@@ -129,6 +129,6 @@ echo
 info "Étapes suivantes :"
 info "  1. App desktop : Space -> Settings -> Members -> générer un lien d'invitation"
 info "  2. Sur le noeud : pct exec ${VMID} -- bash -c \\"
-info "       'cd ${APP_DIR} && docker compose exec -T anytype-cli /app/anytype space join \"<lien-invitation>\"'"
+info "       'cd ${APP_DIR} && docker compose exec -T anytype-cli anytype space join \"<lien-invitation>\"'"
 info "  3. App desktop : approuver la demande du bot (rôle Editor)"
-info "  4. Vérif : docker compose exec -T anytype-cli /app/anytype space list"
+info "  4. Vérif : docker compose exec -T anytype-cli anytype space list"
