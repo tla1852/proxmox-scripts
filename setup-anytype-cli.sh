@@ -69,8 +69,12 @@ services:
       "
 
   # anytype-cli server (seul le port HTTP API est publié)
+  # serve bind 127.0.0.1 par défaut dans le conteneur -> le mapping Docker
+  # tombe dans le vide ; on force l'écoute API sur 0.0.0.0.
   anytype-cli:
     image: "ghcr.io/anyproto/anytype-cli:${ANYTYPE_CLI_VERSION}"
+    entrypoint: ["anytype"]
+    command: ["serve", "--listen-address", "0.0.0.0:31012"]
     restart: unless-stopped
     depends_on:
       anytype-cli_bootstrap:
