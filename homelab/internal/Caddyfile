@@ -62,12 +62,9 @@ telescope.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.43:3000
 }
 
-# AppFlowy-Cloud (CT 111 ; nginx du compose ; request_body 2G = import Notion via /api/import).
-appflowy.ts.tlagrange.pro {
-	request_body {
-		max_size 2GB
-	}
-	reverse_proxy 192.168.1.45:80
+# Rocket.Chat (CT 111 — ID repris de l'ex-AppFlowy, décommissionné)
+chat.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.31:3000
 }
 
 # Supervision (Grafana, CT 103)
