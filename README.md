@@ -271,3 +271,21 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 
 À la fin, le script affiche les URLs Prometheus/Grafana et les étapes post-install
 (vhost `grafana.ts.tlagrange.pro`, `PROMETHEUS_URL`/`GRAFANA_URL` dans L5, dashboards).
+
+## create-lxc-rocketchat.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **Rocket.Chat**
+(Docker Compose : image officielle `registry.rocket.chat` + MongoDB 7 en
+replica set mono-nœud `rs0`, initié automatiquement via le healthcheck) :
+
+- HTTP sur le port 3000 ; `ROOT_URL` demandé à l'exécution
+  (défaut `http://<ip>:3000`, modifiable ensuite dans `/opt/rocketchat/.env`)
+- Données dans le volume Docker `mongodb_data`
+- Usages visés (config post-install, affichée en fin de script) : canal de
+  liens traités par n8n, webhooks entrants pour notifs (infra, recherche
+  boulot), Livechat/Omnichannel pour contacts clients
+- Disque 16 Go, RAM conseillée 4096 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-rocketchat.sh)
+```
