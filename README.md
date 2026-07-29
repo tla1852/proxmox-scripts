@@ -289,3 +289,22 @@ replica set mono-nœud `rs0`, initié automatiquement via le healthcheck) :
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-rocketchat.sh)
 ```
+
+## create-lxc-hammer.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus le **serveur de sync
+Hammer** ([hammer.ink](https://hammer.ink), éditeur de romans Kotlin
+Multiplatform, MIT) via l'image officielle GHCR
+`ghcr.io/darkrock-studios/hammer-editor/server` :
+
+- PostgreSQL **embarqué** dans le volume Docker `hammer-data` — aucun autre
+  service requis ; `config.toml` bind-mounté ro depuis `/opt/hammer/`
+- HTTP en clair sur le port 8080 (LAN) ; les clients ne parlent **que HTTPS**
+  → exposition via le Caddy interne en `hammer.ts.tlagrange.pro` (runbook
+  affiché en fin de script : vhost Caddy + extra-record MagicDNS)
+- Premier compte créé = admin ; whitelist activée par défaut (`/admin`)
+- Disque 12 Go, RAM conseillée 2048 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-hammer.sh)
+```
