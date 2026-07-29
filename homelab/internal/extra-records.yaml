@@ -20,3 +20,4 @@ extra_records:
   - { name: "chat.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "veille.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "clashbuzz-studio.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "hammer.ts.tlagrange.pro", type: A, value: "100.64.0.2" }

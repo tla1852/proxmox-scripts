@@ -81,3 +81,8 @@ veille.ts.tlagrange.pro {
 clashbuzz-studio.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.6:8090
 }
+
+# Hammer — serveur de sync écriture hammer.ink (CT 119)
+hammer.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.48:8080
+}
