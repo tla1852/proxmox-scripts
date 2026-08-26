@@ -2,7 +2,7 @@
 
 Conf de l'edge public (LXC 144 du homelab, cf. [tla1852/homelab-secu](https://github.com/tla1852/homelab-secu), phase 4).
 
-- `Caddyfile` — reverse proxy des 9 vhosts publics + handler **CrowdSec** par site (`import prot`) + log JSON vers `/var/log/caddy/access.log`.
+- `Caddyfile` — reverse proxy des 10 vhosts publics + handler **CrowdSec** par site (`import prot`) + log JSON vers `/var/log/caddy/access.log`.
 - `docker-compose.yml` — services `caddy` (image custom `caddy-crowdsec:2.11`) + `crowdsec` (engine, collections caddy/http-cve/base-http-scenarios), partage du volume `logs/`.
 - `acquis.yaml` — acquisition CrowdSec sur les logs Caddy.
 

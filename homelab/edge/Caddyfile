@@ -88,3 +88,13 @@ optout.lagrange5.fr {
 		respond 404
 	}
 }
+
+# ===== Plex (média) =====
+# Serveur Plex sur 192.168.1.15:32400. Exposé via l'edge (443 + CrowdSec) plutôt
+# qu'un port-forward 32400 dédié. Côté Plex : Réglages > Réseau > "URL d'accès
+# personnalisées au serveur" = https://plex.survivalmode.familyds.org , et
+# "Activer l'accès distant" peut rester désactivé.
+plex.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.15:32400
+}
