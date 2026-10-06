@@ -77,7 +77,7 @@ bureau ─▶ edge (IP bureau ? sinon abort) ─▶ Authelia (session 2FA ? sino
 
 1. **Authelia** (hôte Proxmox) : lancer `create-lxc-authelia.sh`, noter l'IP,
    réserver le bail DHCP.
-2. **Repo** : remplacer `AUTHELIA_IP` par cette IP dans `Caddyfile` et `144.fw`.
+2. **Repo** : reporter cette IP dans `Caddyfile` et `144.fw` (actuellement `192.168.1.44`, CT 102).
 3. **DNS** : `GANDI_API_TOKEN=… bash dns-bureau.sh`, puis vérifier
    `dig +short @1.1.1.1 auth.ts.tlagrange.pro`.
 4. **Firewall** (hôte Proxmox) : déposer `144.fw` dans `/etc/pve/firewall/144.fw`

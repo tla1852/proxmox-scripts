@@ -123,7 +123,7 @@ auth.ts.tlagrange.pro {
 	import prot
 	route {
 		import bureau_only
-		reverse_proxy AUTHELIA_IP:9091
+		reverse_proxy 192.168.1.44:9091
 	}
 }
 
@@ -149,7 +149,7 @@ hammer.ts.tlagrange.pro {
 	import prot
 	route {
 		import bureau_only
-		forward_auth AUTHELIA_IP:9091 {
+		forward_auth 192.168.1.44:9091 {
 			uri /api/authz/forward-auth
 			copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
 		}

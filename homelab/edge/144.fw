@@ -34,7 +34,7 @@ OUT ACCEPT -dest 192.168.1.15 -p tcp -dport 32400
 # Authelia (portail + forward_auth) et Caddy interne (upstream unique des vhosts
 # *.ts.tlagrange.pro). Ces deux règles donnent à l'edge un chemin vers TOUS les
 # services privés : à retirer si l'accès bureau n'est plus utilisé.
-OUT ACCEPT -dest AUTHELIA_IP -p tcp -dport 9091
+OUT ACCEPT -dest 192.168.1.44 -p tcp -dport 9091
 OUT ACCEPT -dest 192.168.1.72 -p tcp -dport 443
 
 # --- Sortant : tout le reste du LAN / tailnet = DENY (proxmox, NAS, autres) ---
