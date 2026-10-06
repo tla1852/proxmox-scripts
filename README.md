@@ -308,3 +308,23 @@ Multiplatform, MIT) via l'image officielle GHCR
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-hammer.sh)
 ```
+
+## create-lxc-authelia.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **Authelia**
+([authelia.com](https://www.authelia.com)), portail d'authentification
+(mot de passe + TOTP) interrogé par l'edge Caddy en `forward_auth` :
+
+- Image `ghcr.io/authelia/authelia:4.39`, utilisateurs en fichier YAML,
+  stockage SQLite — aucun autre service requis ; tout dans `/opt/authelia/`
+- Secrets et mot de passe initial générés dans le container (mot de passe
+  affiché en fin de script et écrit dans `/opt/authelia/initial-password.txt`)
+- Pas de SMTP : les codes de vérification (enrôlement TOTP) sont écrits dans
+  `/opt/authelia/config/notification.txt`
+- Sert l'accès aux services privés `*.ts.tlagrange.pro` depuis l'IP du bureau,
+  hors tailnet — voir `homelab/edge/README.md`, section « Accès bureau »
+- Disque 8 Go, RAM 512 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-authelia.sh)
+```
