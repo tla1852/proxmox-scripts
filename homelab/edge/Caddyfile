@@ -98,3 +98,67 @@ plex.survivalmode.familyds.org {
 	import prot
 	reverse_proxy 192.168.1.15:32400
 }
+
+# ═════════════════════════════════════════════════════════════════════════════
+# ACCÈS BUREAU — services privés *.ts.tlagrange.pro hors tailnet
+# ═════════════════════════════════════════════════════════════════════════════
+# Le poste du bureau ne peut pas rejoindre le tailnet. Depuis l'IP publique du
+# bureau UNIQUEMENT (46.255.204.70, partagée -> second facteur obligatoire) :
+#   1. IP source != bureau        -> connexion coupée (abort), rien n'est servi
+#   2. pas de session Authelia    -> redirection vers auth.ts.tlagrange.pro
+#                                    (mot de passe + TOTP, CT authelia)
+#   3. session valide             -> relais vers le Caddy interne (LXC 100, .72)
+#                                    qui route vers le service
+# Le chemin tailnet (MagicDNS -> 100.64.0.2) n'est pas concerné : ces vhosts ne
+# sont atteints que par les clients qui résolvent via le DNS public (CNAME ->
+# survivalmode.familyds.org, cf. dns-bureau.sh). Certs : Let's Encrypt HTTP-01.
+# `route` impose l'ordre : filtre IP AVANT forward_auth (sinon Authelia serait
+# sollicité par n'importe quelle IP).
+(bureau_only) {
+	@hors_bureau not remote_ip 46.255.204.70
+	abort @hors_bureau
+}
+
+auth.ts.tlagrange.pro {
+	import prot
+	route {
+		import bureau_only
+		reverse_proxy 192.168.1.44:9091
+	}
+}
+
+vault.ts.tlagrange.pro,
+recette.ts.tlagrange.pro,
+ludo.ts.tlagrange.pro,
+homarr.ts.tlagrange.pro,
+read.ts.tlagrange.pro,
+n8n.ts.tlagrange.pro,
+qbit.ts.tlagrange.pro,
+radar.ts.tlagrange.pro,
+pdf.ts.tlagrange.pro,
+sonar.ts.tlagrange.pro,
+wallos.ts.tlagrange.pro,
+proxmox.ts.tlagrange.pro,
+dsm.ts.tlagrange.pro,
+telescope.ts.tlagrange.pro,
+chat.ts.tlagrange.pro,
+grafana.ts.tlagrange.pro,
+veille.ts.tlagrange.pro,
+clashbuzz-studio.ts.tlagrange.pro,
+hammer.ts.tlagrange.pro {
+	import prot
+	route {
+		import bureau_only
+		forward_auth 192.168.1.44:9091 {
+			uri /api/authz/forward-auth
+			copy_headers Remote-User Remote-Groups Remote-Email Remote-Name
+		}
+		# Upstream unique : le Caddy interne, joint par son IP LAN avec le SNI
+		# du service (cert LE valide côté interne -> vérification TLS normale).
+		reverse_proxy https://192.168.1.72 {
+			transport http {
+				tls_server_name {host}
+			}
+		}
+	}
+}

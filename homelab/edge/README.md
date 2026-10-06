@@ -49,3 +49,49 @@ docker exec crowdsec cscli decisions list
 ```
 
 `crowdsec.env` (clé bouncer) n'est pas versionné — local à l'edge.
+
+## Accès bureau (services privés hors tailnet)
+
+Le poste du bureau ne peut pas rejoindre le tailnet. Les 19 vhosts
+`*.ts.tlagrange.pro` sont donc aussi servis par l'edge, **uniquement** pour l'IP
+publique du bureau (`46.255.204.70`, partagée) et derrière **Authelia**
+(mot de passe + TOTP, `create-lxc-authelia.sh`).
+
+```
+bureau ─▶ edge (IP bureau ? sinon abort) ─▶ Authelia (session 2FA ? sinon portail)
+                                          └▶ Caddy interne .72 ─▶ service
+```
+
+- `Caddyfile` — bloc « ACCÈS BUREAU » : `auth.ts.tlagrange.pro` (portail) + les
+  19 vhosts privés (`forward_auth` puis relais vers `https://192.168.1.72`).
+- `144.fw` — 2 règles egress : edge → Authelia `:9091`, edge → Caddy interne `:443`.
+- `dns-bureau.sh` — CNAME publics Gandi `<svc>.ts` → `survivalmode.familyds.org`.
+  Les clients tailnet continuent de résoudre `100.64.0.2` via MagicDNS.
+
+> ⚠️ Compromis assumé : ces deux règles donnent à l'edge (DMZ) un chemin vers
+> tous les services privés, et le bureau fait de l'inspection TLS (le proxy du
+> bureau voit le trafic en clair). Web uniquement : les clients non-navigateur
+> (Bitwarden desktop, Drive, Hammer) ne passent pas le portail.
+
+### Mise en service
+
+1. **Authelia** (hôte Proxmox) : lancer `create-lxc-authelia.sh`, noter l'IP,
+   réserver le bail DHCP.
+2. **Repo** : reporter cette IP dans `Caddyfile` et `144.fw` (actuellement `192.168.1.44`, CT 102).
+3. **DNS** : `GANDI_API_TOKEN=… bash dns-bureau.sh`, puis vérifier
+   `dig +short @1.1.1.1 auth.ts.tlagrange.pro`.
+4. **Firewall** (hôte Proxmox) : déposer `144.fw` dans `/etc/pve/firewall/144.fw`
+   (appliqué à chaud), vérifier `pve-firewall status`.
+5. **Caddy** (edge, `/opt/caddy`) : récupérer le `Caddyfile` puis
+   `docker compose exec caddy caddy reload --config /etc/caddy/Caddyfile` ;
+   suivre l'émission des 20 certs dans `docker compose logs -f caddy`.
+6. **Tests** :
+   - en 4G : `curl -I https://n8n.ts.tlagrange.pro` → connexion coupée ;
+   - au bureau : redirection vers `auth.ts.tlagrange.pro`, login, enrôlement
+     TOTP (code de vérification : `notification.txt` du CT Authelia), accès OK ;
+   - sur le tailnet : comportement inchangé, pas de portail.
+
+### Retrait
+
+`bash dns-bureau.sh --delete`, retirer le bloc « ACCÈS BUREAU » du `Caddyfile`
+et les 2 règles de `144.fw`, recharger. Le CT Authelia peut alors être arrêté.

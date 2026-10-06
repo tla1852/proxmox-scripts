@@ -30,6 +30,13 @@ OUT ACCEPT -dest 192.168.1.43 -p tcp -dport 3000
 # Plex (vhost plex.survivalmode.familyds.org)
 OUT ACCEPT -dest 192.168.1.15 -p tcp -dport 32400
 
+# --- Sortant : accès bureau aux services privés (cf. Caddyfile, bloc ACCÈS BUREAU) ---
+# Authelia (portail + forward_auth) et Caddy interne (upstream unique des vhosts
+# *.ts.tlagrange.pro). Ces deux règles donnent à l'edge un chemin vers TOUS les
+# services privés : à retirer si l'accès bureau n'est plus utilisé.
+OUT ACCEPT -dest 192.168.1.44 -p tcp -dport 9091
+OUT ACCEPT -dest 192.168.1.72 -p tcp -dport 443
+
 # --- Sortant : tout le reste du LAN / tailnet = DENY (proxmox, NAS, autres) ---
 OUT DROP -dest 192.168.0.0/16
 OUT DROP -dest 10.0.0.0/8
