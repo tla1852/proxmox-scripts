@@ -29,6 +29,8 @@ OUT ACCEPT -dest 192.168.1.30 -p tcp -dport 3000
 OUT ACCEPT -dest 192.168.1.43 -p tcp -dport 3000
 # Plex (vhost plex.survivalmode.familyds.org)
 OUT ACCEPT -dest 192.168.1.15 -p tcp -dport 32400
+# mamour.love (site mariage)
+OUT ACCEPT -dest 192.168.1.88 -p tcp -dport 3000
 
 # --- Sortant : accès bureau aux services privés (cf. Caddyfile, bloc ACCÈS BUREAU) ---
 # Authelia (portail + forward_auth) et Caddy interne (upstream unique des vhosts

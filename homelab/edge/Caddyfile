@@ -99,6 +99,19 @@ plex.survivalmode.familyds.org {
 	reverse_proxy 192.168.1.15:32400
 }
 
+# ===== mamour.love (site mariage, CT mariage) =====
+# Découpage par chemin dans next.config.ts, pas ici (cf. README du repo mariage).
+www.mamour.love {
+	import prot
+	redir https://mamour.love{uri} permanent
+}
+
+mamour.love {
+	import prot
+	encode zstd gzip
+	reverse_proxy 192.168.1.88:3000
+}
+
 # ═════════════════════════════════════════════════════════════════════════════
 # ACCÈS BUREAU — services privés *.ts.tlagrange.pro hors tailnet
 # ═════════════════════════════════════════════════════════════════════════════
