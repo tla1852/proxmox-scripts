@@ -168,7 +168,11 @@ hammer.ts.tlagrange.pro {
 		}
 		# Upstream unique : le Caddy interne, joint par son IP LAN avec le SNI
 		# du service (cert LE valide côté interne -> vérification TLS normale).
+		# header_up Host obligatoire : avec un upstream https://, Caddy 2.11
+		# envoie par défaut l'adresse de l'upstream comme Host -> le Caddy
+		# interne ne reconnaît aucun site et répond 200 vide (page blanche).
 		reverse_proxy https://192.168.1.72 {
+			header_up Host {host}
 			transport http {
 				tls_server_name {host}
 			}
