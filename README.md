@@ -328,3 +328,24 @@ Même base que `create-lxc.sh`, mais déploie en plus **Authelia**
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-authelia.sh)
 ```
+
+## create-lxc-guacamole.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **Apache Guacamole**
+([guacamole.apache.org](https://guacamole.apache.org)), passerelle SSH / RDP /
+VNC dans le navigateur avec liste de connexions — bastion du homelab, remplace
+mRemoteNG :
+
+- 3 conteneurs dans le LXC : `guacd` (moteur), `guacamole` 1.6.0 (appli web),
+  PostgreSQL 16 ; tout dans `/opt/guacamole/`, seul le port 8080 est publié
+- Le compte `guacadmin` reçoit un mot de passe aléatoire (le défaut
+  `guacadmin/guacadmin` est remplacé et vérifié refusé) ; affiché en fin de
+  script et écrit dans `/opt/guacamole/initial-password.txt`
+- TOTP intégré activé : QR code au premier login
+- Exposition : `guac.ts.tlagrange.pro` via le Caddy interne (tailnet) et l'edge
+  (IP bureau + Authelia) — runbook affiché en fin de script
+- Disque 10 Go, RAM conseillée 2048 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-guacamole.sh)
+```
