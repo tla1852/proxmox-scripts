@@ -87,6 +87,29 @@ hammer.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.48:8080
 }
 
+# Mamour.love site pour mariage Cha & Gui
+
+www.mamour.love {
+	redir https://mamour.love{uri} permanent
+}
+
+mamour.love {
+	encode zstd gzip
+
+	handle /supabase/* {
+		@api path /supabase/auth/v1/* /supabase/rest/v1/* /supabase/functions/v1/* /supabase/storage/v1/* /supabase/realtime/v1/*
+		handle @api {
+			uri strip_prefix /supabase
+			reverse_proxy 192.168.1.88:8000
+		}
+		respond 404
+	}
+
+	handle {
+		reverse_proxy 192.168.1.88:3000
+	}
+}
+
 # Guacamole — bastion SSH/RDP/VNC (CT 124)
 guac.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.18:8080
