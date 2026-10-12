@@ -203,6 +203,7 @@ services:
     environment:
       WEBAPP_CONTEXT: ROOT
       GUACAMOLE_HOME: /etc/guacamole-tpl
+      API_SESSION_TIMEOUT: "360"
       GUACD_HOSTNAME: guacd
       POSTGRESQL_ENABLED: "true"
       POSTGRESQL_HOSTNAME: db
