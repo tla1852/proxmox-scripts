@@ -349,3 +349,6 @@ mRemoteNG :
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-guacamole.sh)
 ```
+
+Thème sombre (Guacamole n'en a pas en natif) : `homelab/guacamole/theme-sombre.sh`,
+à lancer dans le LXC — fabrique une extension CSS chargée par le serveur.

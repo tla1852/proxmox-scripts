@@ -137,7 +137,7 @@ pct exec "$VMID" -- env APP_DIR="$APP_DIR" GUAC_VERSION="$GUAC_VERSION" \
     POSTGRES_IMAGE="$POSTGRES_IMAGE" bash -s <<'GUACAMOLE'
 set -euo pipefail
 umask 077
-mkdir -p "$APP_DIR/initdb"
+mkdir -p "$APP_DIR/initdb" "$APP_DIR/home/extensions"
 cd "$APP_DIR"
 
 # Secret généré ici, jamais en dur.
@@ -154,6 +154,9 @@ docker run --rm "guacamole/guacamole:${GUAC_VERSION}" \
 grep -q 'CREATE TABLE guacamole_user' initdb/001-schema.sql \
     || { echo "Schéma Guacamole vide ou inattendu"; exit 1; }
 chmod 755 initdb && chmod 644 initdb/001-schema.sql
+# Gabarit GUACAMOLE_HOME (extensions, ex. homelab/guacamole/theme-sombre.sh) :
+# lu par l'utilisateur non-root du conteneur.
+chmod 755 home home/extensions
 
 # Port 8080 publié sur le LAN : le Caddy interne (LXC 100) doit le joindre.
 # HTTP en clair sur le LAN, TLS terminé par Caddy. WEBAPP_CONTEXT=ROOT sert
@@ -193,10 +196,13 @@ services:
         condition: service_healthy
       guacd:
         condition: service_started
+    volumes:
+      - ./home:/etc/guacamole-tpl:ro
     ports:
       - "0.0.0.0:8080:8080"
     environment:
       WEBAPP_CONTEXT: ROOT
+      GUACAMOLE_HOME: /etc/guacamole-tpl
       GUACD_HOSTNAME: guacd
       POSTGRESQL_ENABLED: "true"
       POSTGRESQL_HOSTNAME: db
