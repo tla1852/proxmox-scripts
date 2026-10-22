@@ -23,7 +23,8 @@ for id in $(pct list | awk 'NR>1 && $2=="running"{print $1}'); do
     dock=$(cx "$id" 'command -v docker >/dev/null || exit 0
 for c in $(docker ps --format "{{.Names}}"); do
   v=$(timeout 5 docker exec "$c" sh -c "command -v php >/dev/null && php -r \"echo PHP_VERSION;\"" 2>/dev/null)
-  [ -n "$v" ] && echo "  docker  $c ($(docker inspect -f "{{.Config.Image}}" "$c")) php $v"
+  case "$v" in [0-9]*.[0-9]*) ;; *) continue ;; esac
+  echo "  docker  $c ($(docker inspect -f "{{.Config.Image}}" "$c")) php $v"
 done')
     [[ -n "$dock" ]] && out+="$dock"$'\n'
 
