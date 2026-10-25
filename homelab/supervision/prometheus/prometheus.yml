@@ -86,15 +86,18 @@ scrape_configs:
     relabel_configs: *blackbox_relabel
 
   # Probes des apps GCP publiques (vue "depuis l'extérieur du LAN" partielle :
-  # sortie via la Bbox). Module tolérant : up = répond en HTTP, même 4xx.
+  # sortie via la Bbox). Les serveurs de jeu n'ont rien sur `/` (404) : on
+  # sonde leur `/health`, en exigeant un 2xx. L'ancien module tolérant
+  # comptait ce 404 comme « up », si bien qu'un serveur cassé qui répondrait
+  # encore restait vert.
   - job_name: blackbox-gcp-apps
     metrics_path: /probe
     params:
-      module: [http_any]
+      module: [http_2xx]
     static_configs:
       - targets:
-          - https://clashbuzz-server-prod-824477654962.europe-west1.run.app
-          - https://clashbuzz-server-preprod-824477654962.europe-west1.run.app
+          - https://clashbuzz-server-prod-824477654962.europe-west1.run.app/health
+          - https://clashbuzz-server-preprod-824477654962.europe-west1.run.app/health
           - https://clashbuzz-web-prod-824477654962.europe-west1.run.app
           - https://clashbuzz-web-preprod-824477654962.europe-west1.run.app
     relabel_configs: *blackbox_relabel
