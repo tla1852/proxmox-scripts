@@ -352,3 +352,26 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 
 Thème sombre (Guacamole n'en a pas en natif) : `homelab/guacamole/theme-sombre.sh`,
 à lancer dans le LXC — fabrique une extension CSS chargée par le serveur.
+
+## create-lxc-rustdesk.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus le **serveur RustDesk OSS**
+(prise en main à distance self-hosted, image [`rustdesk/rustdesk-server`](https://github.com/rustdesk/rustdesk-server)) :
+
+- Image Docker **épinglée** (`rustdesk/rustdesk-server:1.1.16`), compose dans `/opt/rustdesk`
+- `hbbs` (ID / rendez-vous) + `hbbr` (relais) en `network_mode: host`
+- Clé ed25519 générée au premier démarrage et **imposée** aux clients (`-k _`) ;
+  clé publique affichée en fin de script et copiée dans `/root/rustdesk-key.txt`
+- Hôte public via DDNS (défaut `fix.survivalmode.familyds.org`) : ID server des
+  clients **et** relais annoncé par hbbs (`-r`)
+- Disque 8 Go, RAM 512 Mo, 1 cœur
+- Ports : 21115/tcp, 21116/tcp+udp, 21117/tcp (21118-21119/tcp pour le client web, optionnel)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-rustdesk.sh)
+```
+
+⚠️ Protocole TCP/UDP brut : pas de reverse proxy HTTP (Caddy). Accès hors LAN par
+forwards routeur directs (21115/tcp, 21116/tcp+udp, 21117/tcp) vers le CT, avec bail
+DHCP fixe. Sauvegarder `/opt/rustdesk/data/id_ed25519`
+(la perdre = reconfigurer tous les clients).
