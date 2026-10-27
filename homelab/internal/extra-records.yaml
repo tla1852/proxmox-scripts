@@ -22,3 +22,4 @@ extra_records:
   - { name: "clashbuzz-studio.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "hammer.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
   - { name: "guac.ts.tlagrange.pro", type: A, value: "100.64.0.2" }
+  - { name: "hyperframes.ts.tlagrange.pro", type: A, value: "100.64.0.2" }

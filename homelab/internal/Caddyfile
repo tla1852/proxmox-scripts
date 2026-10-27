@@ -114,3 +114,8 @@ mamour.love {
 guac.ts.tlagrange.pro {
 	reverse_proxy 192.168.1.18:8080
 }
+
+# HyperFrames Studio — prompt → vidéo MP4 (CT 127)
+hyperframes.ts.tlagrange.pro {
+	reverse_proxy 192.168.1.67:8080
+}
