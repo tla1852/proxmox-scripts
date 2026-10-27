@@ -99,10 +99,10 @@ info "Installation de FFmpeg et chrome-headless-shell (versions épinglées)..."
 pct exec "$VMID" -- env FFMPEG_RELEASE="$FFMPEG_RELEASE" FFMPEG_BUILD="$FFMPEG_BUILD" \
     FFMPEG_SHA256="$FFMPEG_SHA256" CHROME_VERSION="$CHROME_VERSION" bash -s <<'BIN'
 set -euo pipefail
-if ! ffmpeg -version 2>/dev/null | head -1 | grep -q "${FFMPEG_BUILD#ffmpeg-}"; then
+if ! /usr/local/bin/ffmpeg -version 2>/dev/null | head -1 | grep -q "${FFMPEG_BUILD#ffmpeg-}"; then
     curl -fsSL -o /tmp/ffmpeg.tar.xz "$FFMPEG_RELEASE/$FFMPEG_BUILD-linux64-gpl-8.0.tar.xz"
     echo "$FFMPEG_SHA256  /tmp/ffmpeg.tar.xz" | sha256sum -c - >/dev/null
-    tar -xJf /tmp/ffmpeg.tar.xz -C /usr/local/bin --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
+    tar --no-same-owner -xJf /tmp/ffmpeg.tar.xz -C /usr/local/bin --strip-components=2 --wildcards '*/bin/ffmpeg' '*/bin/ffprobe'
     rm /tmp/ffmpeg.tar.xz
 fi
 if ! /opt/chrome/chrome-headless-shell --version 2>/dev/null | grep -q "$CHROME_VERSION"; then
@@ -146,7 +146,8 @@ cat > /usr/local/bin/hf-render <<'EOF'
 #   Rend un projet HyperFrames (index.html + hyperframes.json). Un seul rendu à
 #   la fois (les suivants attendent), priorité CPU/IO basse. Défaut sortie :
 #   <dossier_projet>/out.mp4 ; défaut qualité : --quality looks.
-#   Réglages par défaut surchargeables : HF_RENDER_ARGS="--workers 3"
+#   3 workers par défaut (mesuré sur 4 cœurs : 14,8 s vs 20,3 s en 1, 4 = pas mieux) ;
+#   surchargeable : HF_RENDER_ARGS="--workers 2"
 set -euo pipefail
 . /etc/profile.d/hyperframes.sh
 PROJ="${1:?usage: hf-render <dossier_projet> [sortie.mp4] [options...]}"; shift
@@ -163,7 +164,7 @@ echo "[hf-render] rendu $PROJ → $OUT (log $LOG)" >&2
 cd "$PROJ"
 START=$(date +%s)
 # shellcheck disable=SC2086
-nice -n 10 ionice -c3 hyperframes render --output "$OUT" "${QUALITY[@]}" ${HF_RENDER_ARGS:-} "$@" 2>&1 | tee "$LOG"
+nice -n 10 ionice -c3 hyperframes render --output "$OUT" "${QUALITY[@]}" ${HF_RENDER_ARGS:---workers 3} "$@" 2>&1 | tee "$LOG"
 echo "[hf-render] OK en $(( $(date +%s) - START )) s : $OUT ($(du -h "$OUT" | cut -f1))" >&2
 EOF
 chmod 755 /usr/local/bin/hf-render
@@ -266,5 +267,5 @@ info "  Studio    : http://${IP}:${STUDIO_PORT}   (logs : pct exec ${VMID} -- jo
 info "  Suite     : vhost Caddy interne  hyperframes.ts.tlagrange.pro → ${IP}:${STUDIO_PORT}  + extra_record (homelab/internal)"
 info "  SSH       : ssh thibault@${IP}"
 info "  Rendu SSH : rsync -a projet/ thibault@${IP}:jobs/x/ && ssh thibault@${IP} hf-render jobs/x && scp thibault@${IP}:jobs/x/out.mp4 ."
-info "  Versions  : hyperframes ${HYPERFRAMES_VERSION}, $(pct exec "$VMID" -- /opt/chrome/chrome-headless-shell --version 2>/dev/null | head -1), $(pct exec "$VMID" -- ffmpeg -version | head -1 | cut -d' ' -f1-3)"
+info "  Versions  : hyperframes ${HYPERFRAMES_VERSION}, $(pct exec "$VMID" -- /opt/chrome/chrome-headless-shell --version 2>/dev/null | head -1), $(pct exec "$VMID" -- /usr/local/bin/ffmpeg -version | head -1 | cut -d' ' -f1-3)"
 info "  Tailnet   : bash /tmp/enroll-lxc.sh ${VMID}   (SSH hors LAN, cf. homelab/tailnet)"
