@@ -16,7 +16,8 @@
 # - Studio : utilisateur système "studio" (/srv/studio), Claude Code natif +
 #   skills HyperFrames, service systemd hyperframes-studio (port 8080).
 #   Auth Claude = jeton d'abonnement (`claude setup-token` sur un PC),
-#   stocké dans /etc/hyperframes-studio.env (root, 600)
+#   stocké dans /etc/hyperframes-studio.env (root, 600), avec le jeton GitHub
+#   lecture seule (projets de référence) et le jeton Télescope lecture seule
 # - CPU weight réduit (cpuunits) : le CT cède la place aux autres guests
 #   quand l'hôte est chargé
 #
@@ -62,11 +63,11 @@ while IFS= read -r line; do
     KEYS+="${line}"$'\n'
 done
 
-if pct exec "$VMID" -- test -s /etc/hyperframes-studio.env; then
-    read -rsp "Jeton Claude (claude setup-token) — vide = garder l'actuel : " CLAUDE_TOKEN; echo
-else
-    read -rsp "Jeton Claude pour le Studio (lancer « claude setup-token » sur un PC) — vide = plus tard : " CLAUDE_TOKEN; echo
-fi
+# Secrets du Studio (saisie masquée ; vide = garder la valeur actuelle / plus tard)
+read -rsp "Jeton Claude (« claude setup-token » sur un PC) : " CLAUDE_TOKEN; echo
+read -rsp "Jeton GitHub fine-grained, lecture seule (Contents + Metadata: read, tous les repos) : " GH_TOKEN; echo
+read -rsp "Jeton Télescope lecture seule (L5_API_READ_TOKEN) : " L5_READ; echo
+L5_URL_VAL="${L5_URL_VAL:-http://192.168.1.43:3000}"
 
 # ----- Système : Node 22, libs Chrome, sshd -----
 info "Installation de Node 22, des bibliothèques Chrome et de sshd..."
@@ -193,8 +194,6 @@ pct exec "$VMID" -- env STUDIO_SRC="$STUDIO_SRC" STUDIO_PORT="$STUDIO_PORT" bash
 set -euo pipefail
 id studio >/dev/null 2>&1 || useradd --system --create-home --home-dir /srv/studio --shell /bin/bash studio
 install -d -o studio -g studio /srv/studio/jobs
-# Kits de marque (poussés en SSH par thibault, lus par studio) : /srv/brands/<slug>
-install -d -o thibault -g thibault -m 755 /srv/brands
 
 # Claude Code (installeur natif, dans ~studio/.local/bin, auto-update)
 su - studio -c 'command -v ~/.local/bin/claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash >/dev/null'
@@ -241,10 +240,18 @@ systemctl daemon-reload
 systemctl enable hyperframes-studio >/dev/null 2>&1
 STUDIO
 
-if [[ -n "$CLAUDE_TOKEN" ]]; then
-    printf 'CLAUDE_CODE_OAUTH_TOKEN=%s\n' "$CLAUDE_TOKEN" | pct exec "$VMID" -- bash -c "cat > /etc/hyperframes-studio.env; chmod 600 /etc/hyperframes-studio.env"
-fi
-unset CLAUDE_TOKEN
+# Écrit / remplace une clé du fichier d'env sans toucher aux autres (valeur via stdin)
+set_env() {
+    [[ -n "$2" ]] || return 0
+    printf '%s' "$2" | pct exec "$VMID" -- bash -c "v=\$(cat); f=/etc/hyperframes-studio.env
+        grep -v '^$1=' \$f > \$f.tmp || true; printf '%s=%s\n' '$1' \"\$v\" >> \$f.tmp
+        cat \$f.tmp > \$f; rm -f \$f.tmp; chmod 600 \$f"
+}
+set_env CLAUDE_CODE_OAUTH_TOKEN "$CLAUDE_TOKEN"
+set_env GITHUB_TOKEN "$GH_TOKEN"
+set_env L5_READ_TOKEN "$L5_READ"
+pct exec "$VMID" -- grep -q '^L5_URL=' /etc/hyperframes-studio.env || set_env L5_URL "$L5_URL_VAL"
+unset CLAUDE_TOKEN GH_TOKEN L5_READ
 pct exec "$VMID" -- systemctl restart hyperframes-studio
 
 # ----- Test de fumée : rendu du projet vierge de « hyperframes init » -----

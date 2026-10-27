@@ -49,6 +49,11 @@
   .head h2 { margin: 0; font-size: 18px; }
   .ghost { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--mute); }
   a { color: var(--accent); }
+  .picker { margin-top: 12px; }
+  .picker .ph { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; }
+  .picker .ph input { margin-left: auto; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; width: 160px; }
+  .picker .pl { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 2px 10px; max-height: 150px; overflow: auto; margin-top: 6px; }
+  .picker .pl label { font-size: 13px; color: var(--ink); cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .muted { color: var(--mute); font-size: 13px; }
   @media (max-width: 860px) {
     .app { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 40vh; }
@@ -72,11 +77,11 @@
     <div class="row">
       <label>Format <select id="format"><option value="portrait">9:16 portrait</option><option value="landscape">16:9 paysage</option><option value="square">1:1 carré</option></select></label>
       <label>Durée <input id="duration" type="number" min="3" max="60" value="10" /> s</label>
-      <label>Marque <select id="brand" class="brands"></select></label>
       <label>Modèle <select id="model"><option value="sonnet">Sonnet (rapide)</option><option value="opus">Opus (soigné)</option></select></label>
       <label>Fichiers <input id="files" type="file" multiple accept="image/*,audio/*,video/mp4" /></label>
       <button class="go" id="send">Générer</button>
     </div>
+    <div class="picker" id="pick"></div>
     <p class="muted">Compter 1 à 3 min de génération par Claude, puis le rendu. Un job à la fois : les suivants attendent.</p>
   </div>
 </template>
@@ -85,8 +90,22 @@
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const LABEL = { queued: "en attente", generating: "Claude écrit", rendering: "rendu", done: "prête", error: "erreur" };
-let current = null, es = null, shownVersion = null, brands = [];
-const brandOptions = (sel) => `<option value="">— aucune —</option>` + brands.map((b) => `<option value="${esc(b.slug)}" ${b.slug === sel ? "selected" : ""}>${esc(b.title)}</option>`).join("");
+let current = null, es = null, shownVersion = null, projects = [];
+
+// Sélecteur de projets de référence (repos GitHub) : recherche + cases à cocher.
+function picker(el, locked = []) {
+  if (!projects.length) { el.innerHTML = `<p class="muted">Aucun repo GitHub disponible (jeton absent ?).</p>`; return () => []; }
+  el.innerHTML = `<div class="ph"><b>Projets de référence</b> <span class="muted">— Claude lit le code et le journal Télescope</span>
+    <input type="search" placeholder="Filtrer…" /></div><div class="pl">${projects.filter((p) => !p.archived).map((p) => `
+    <label title="${esc(p.description)}"><input type="checkbox" value="${esc(p.name)}" ${locked.includes(p.name) ? "checked disabled" : ""} />
+    ${esc(p.name)}${p.private ? "" : ' <span class="muted">public</span>'}</label>`).join("")}</div>`;
+  el.querySelector("input[type=search]").oninput = (e) => {
+    const q = e.target.value.toLowerCase();
+    el.querySelectorAll(".pl label").forEach((l) => { l.style.display = l.textContent.toLowerCase().includes(q) ? "" : "none"; });
+  };
+  return () => [...el.querySelectorAll(".pl input:checked:not(:disabled)")].map((i) => i.value);
+}
+let pickNew = () => [], pickRev = () => [];
 
 async function api(path, opts = {}) {
   const r = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
@@ -126,11 +145,11 @@ function showNew() {
     try {
       const job = await api("/api/jobs", { method: "POST", body: JSON.stringify({
         prompt: $("#prompt").value, format: $("#format").value, duration: $("#duration").value,
-        model: $("#model").value, brand: $("#brand").value || null, files: await readFiles($("#files")) }) });
+        model: $("#model").value, projects: pickNew(), files: await readFiles($("#files")) }) });
       go(job.id);
     } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = "Générer"; }
   };
-  $("#brand").innerHTML = brandOptions(brands.length === 1 ? brands[0].slug : "");
+  pickNew = picker($("#pick"));
   $("#prompt").focus();
 }
 
@@ -140,14 +159,15 @@ async function showJob(id) {
     <div class="head"><h2>${esc(j.title || "Nouvelle vidéo")}</h2>
       <span><span class="badge ${j.status}" id="badge">${LABEL[j.status]}</span>
       <button class="ghost" onclick="del('${id}')">Supprimer</button></span></div>
-    <p class="muted">${j.format} · ${j.duration} s · ${j.model}${j.brand ? " · marque : " + esc(j.brand) : ""}${j.uploads.length ? " · fichiers : " + esc(j.uploads.join(", ")) : ""}</p>
+    <p class="muted">${j.format} · ${j.duration} s · ${j.model}${j.projects?.length ? " · projets : " + esc(j.projects.join(", ")) : ""}${j.uploads.length ? " · fichiers : " + esc(j.uploads.join(", ")) : ""}</p>
     <div class="view">
       <div>
         <div class="vers" id="vers"></div>
         <div id="player"></div>
         <div class="card" style="margin-top:12px">
           <textarea id="rev" placeholder="Retouche : « plus lent », « texte plus gros », « ajoute le logo à la fin »…" style="min-height:80px"></textarea>
-          <div class="row"><label>Marque <select id="rbrand" class="brands"></select></label><label>Fichiers <input id="rfiles" type="file" multiple accept="image/*,audio/*,video/mp4" /></label>
+          <div class="picker" id="rpick"></div>
+          <div class="row"><label>Fichiers <input id="rfiles" type="file" multiple accept="image/*,audio/*,video/mp4" /></label>
           <button class="go" id="rsend">Retoucher</button></div>
         </div>
       </div>
@@ -156,12 +176,13 @@ async function showJob(id) {
   $("#rsend").onclick = async () => {
     const btn = $("#rsend"); btn.disabled = true;
     try {
-      await api(`/api/jobs/${id}/revise`, { method: "POST", body: JSON.stringify({ prompt: $("#rev").value, brand: $("#rbrand").value || null, files: await readFiles($("#rfiles")) }) });
+      await api(`/api/jobs/${id}/revise`, { method: "POST", body: JSON.stringify({ prompt: $("#rev").value, projects: pickRev(), files: await readFiles($("#rfiles")) }) });
       $("#rev").value = ""; $("#rfiles").value = "";
+      api(`/api/jobs/${id}`).then((j) => { pickRev = picker($("#rpick"), j.projects ?? []); });
     } catch (e) { alert(e.message); }
     btn.disabled = false;
   };
-  $("#rbrand").innerHTML = brandOptions(j.brand);
+  pickRev = picker($("#rpick"), j.projects ?? []);
   render(j);
   es = new EventSource(`/api/jobs/${id}/events`);
   es.onmessage = (m) => {
@@ -207,7 +228,7 @@ async function del(id) {
   try { await api(`/api/jobs/${id}`, { method: "DELETE" }); go(null); } catch (e) { alert(e.message); }
 }
 
-api("/api/brands").then((b) => { brands = b; }).catch(() => {}).finally(() => go(location.hash.slice(1) || null));
+api("/api/projects").then((p) => { projects = p; }).catch(() => {}).finally(() => go(location.hash.slice(1) || null));
 setInterval(refreshList, 15000);
 </script>
 </body>

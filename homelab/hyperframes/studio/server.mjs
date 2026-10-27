@@ -9,7 +9,7 @@
 
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { cpSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, appendFileSync } from "node:fs";
+import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, appendFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join, dirname, basename, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,8 +17,12 @@ import { fileURLToPath } from "node:url";
 const PORT = Number(process.env.PORT ?? 8080);
 const DATA = process.env.STUDIO_DATA ?? "/srv/studio";
 const JOBS = join(DATA, "jobs");
-// Kits de marque : <slug>/{BRAND.md, assets/, ref/} — ref = code source en lecture seule
-const BRANDS = process.env.STUDIO_BRANDS ?? "/srv/brands";
+// Projets de référence : repos GitHub (copie locale en lecture, mise à jour à
+// chaque job) + journal Télescope (L5) du projet de même ref.
+const REPOS = join(DATA, "repos");
+const GH_TOKEN = process.env.GITHUB_TOKEN ?? "";
+const L5_URL = (process.env.L5_URL ?? "").replace(/\/$/, "");
+const L5_TOKEN = process.env.L5_READ_TOKEN ?? "";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
 const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MIN ?? 20) * 60_000;
@@ -30,7 +34,7 @@ mkdirSync(JOBS, { recursive: true });
 
 // ── Persistance ─────────────────────────────────────────────────────────────
 const dir = (id) => join(JOBS, id);
-const load = (id) => JSON.parse(readFileSync(join(dir(id), "meta.json"), "utf8"));
+const load = (id) => { const m = JSON.parse(readFileSync(join(dir(id), "meta.json"), "utf8")); m.projects ??= []; return m; };
 const save = (m) => writeFileSync(join(dir(m.id), "meta.json"), JSON.stringify(m, null, 2));
 const validId = (id) => /^[a-z0-9-]{6,40}$/.test(id) && existsSync(join(dir(id), "meta.json"));
 
@@ -54,27 +58,65 @@ for (const id of readdirSync(JOBS)) {
   } catch {}
 }
 
-// ── Kits de marque ──────────────────────────────────────────────────────────
-function listBrands() {
-  if (!existsSync(BRANDS)) return [];
-  return readdirSync(BRANDS).filter((b) => /^[a-z0-9-]+$/.test(b) && existsSync(join(BRANDS, b, "BRAND.md"))).map((slug) => {
-    const title = /^#\s+(.+)$/m.exec(readFileSync(join(BRANDS, slug, "BRAND.md"), "utf8"))?.[1] ?? slug;
-    return { slug, title };
+// ── Projets de référence ────────────────────────────────────────────────────
+let repoCache = { at: 0, list: [] };
+async function listProjects() {
+  if (!GH_TOKEN) return [];
+  if (Date.now() - repoCache.at < 10 * 60_000) return repoCache.list;
+  const list = [];
+  for (let page = 1; page < 10; page++) {
+    const r = await fetch(`https://api.github.com/user/repos?affiliation=owner&per_page=100&sort=pushed&page=${page}`,
+      { headers: { authorization: `Bearer ${GH_TOKEN}`, accept: "application/vnd.github+json" } });
+    if (!r.ok) throw httpErr(502, `GitHub ${r.status}`);
+    const batch = await r.json();
+    list.push(...batch.map((x) => ({ name: x.name, full: x.full_name, description: x.description ?? "", private: x.private, pushedAt: x.pushed_at, archived: x.archived })));
+    if (batch.length < 100) break;
+  }
+  repoCache = { at: Date.now(), list };
+  return list;
+}
+
+// Jeton passé en en-tête à chaque commande (jamais écrit dans .git/config).
+function git(args, cwd) {
+  const auth = Buffer.from(`x-access-token:${GH_TOKEN}`).toString("base64");
+  return new Promise((resolve, reject) => {
+    const child = spawn("git", ["-c", `http.https://github.com/.extraheader=AUTHORIZATION: basic ${auth}`, ...args],
+      { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: "0" }, stdio: ["ignore", "pipe", "pipe"] });
+    let log = "";
+    child.stdout.on("data", (b) => (log += b));
+    child.stderr.on("data", (b) => (log += b));
+    child.on("close", (code) => code === 0 ? resolve(log) : reject(new Error(`git ${args[0]} : ${log.slice(-400)}`)));
   });
 }
-// Copie le kit dans le projet (assets/brand/) : Claude et le rendu y ont accès.
-function applyBrand(id, m, slug) {
-  if (!slug || slug === m.brand) return false;
-  if (!listBrands().some((b) => b.slug === slug)) throw httpErr(400, `marque inconnue : ${slug}`);
-  const dest = join(dir(id), "project", "assets", "brand");
-  rmSync(dest, { recursive: true, force: true });
-  mkdirSync(dest, { recursive: true });
-  cpSync(join(BRANDS, slug, "BRAND.md"), join(dest, "BRAND.md"));
-  if (existsSync(join(BRANDS, slug, "assets"))) cpSync(join(BRANDS, slug, "assets"), dest, { recursive: true });
-  m.brand = slug;
-  return true;
+
+async function syncProject(id, name) {
+  const p = (await listProjects()).find((x) => x.name === name);
+  if (!p) throw new Error(`repo inconnu : ${name}`);
+  const dest = join(REPOS, name);
+  mkdirSync(REPOS, { recursive: true });
+  if (existsSync(join(dest, ".git"))) {
+    await git(["fetch", "--depth", "50", "origin", "HEAD"], dest);
+    await git(["reset", "--hard", "FETCH_HEAD"], dest);
+    await git(["clean", "-fdq"], dest);
+  } else {
+    await git(["clone", "--depth", "50", "--quiet", `https://github.com/${p.full}.git`, dest], REPOS);
+  }
+  // Journal Télescope : ce qui a été fait, daté
+  let journal = `# ${name} — journal Télescope\n\n`;
+  if (L5_URL && L5_TOKEN) {
+    try {
+      const r = await fetch(`${L5_URL}/api/notes?projet_ref=${encodeURIComponent(name)}&limit=150`, { headers: { authorization: `Bearer ${L5_TOKEN}` } });
+      if (r.ok) {
+        const { projet, notes } = await r.json();
+        journal += `Statut : ${projet.statut}${projet.description ? ` — ${projet.description}` : ""}\n\n`;
+        for (const n of notes) journal += `## ${n.cree_le.slice(0, 10)} — ${n.titre}\n\n${n.contenu ?? ""}\n\n`;
+      } else journal += r.status === 404 ? "(aucun projet de ce nom dans Télescope)\n" : `(Télescope : HTTP ${r.status})\n`;
+    } catch (e) { journal += `(Télescope injoignable : ${e.message})\n`; }
+  } else journal += "(Télescope non configuré)\n";
+  mkdirSync(join(dir(id), "context"), { recursive: true });
+  writeFileSync(join(dir(id), "context", `${name}.md`), journal);
+  emit(id, { kind: "tool", name: "sync", detail: `${name} (repo + journal)` });
 }
-const brandRef = (m) => (m.brand && existsSync(join(BRANDS, m.brand, "ref")) ? join(BRANDS, m.brand, "ref") : null);
 
 // Empreinte du projet (chemins + tailles + dates) : rien de modifié → pas de rendu.
 function fingerprint(root) {
@@ -113,7 +155,11 @@ Contraintes :
 - Images fournies par l'utilisateur : assets/uploads/ (${m.uploads.length ? m.uploads.join(", ") : "aucune"}). Pas d'autre média externe que les bibliothèques déjà référencées.
 - Vérifie avec \`hyperframes check\` (et \`hyperframes snapshot\` si utile) jusqu'à zéro erreur. Le CLI est installé globalement : appelle \`hyperframes …\` directement, pas via npx ni npm run.
 - NE LANCE PAS \`hyperframes render\` : le studio rend lui-même la vidéo après toi.
-${m.brand ? `- Marque : ${m.brand}. Lis D'ABORD assets/brand/BRAND.md et respecte strictement la charte (couleurs, polices, logo, ton, libellés) ; les captures et logos sont dans assets/brand/.${brandRef(m) ? ` Code source de l'application, en LECTURE SEULE (ne rien y écrire) : ${brandRef(m)} — inspire-toi des vrais écrans, composants et textes plutôt que d'en inventer.` : ""}\n` : ""}- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
+${m.projects.length ? `- Projets de référence de l'utilisateur (ce sont SES applications) : ${m.projects.join(", ")}. Pour chacun :
+  * code source à jour en LECTURE SEULE dans ${REPOS}/<projet> : lis README, CLAUDE.md, docs/ et le code des écrans (composants, CSS, libellés). S'il existe, docs/studio/BRAND.md est la charte à respecter en priorité. \`git log\` y donne l'historique.
+  * journal Télescope ${join(dir(m.id), "context")}/<projet>.md : ce qui a été livré, daté — la source pour « ce que j'ai fait ».
+  * Reproduis fidèlement couleurs, polices, logos, écrans et libellés réels ; n'invente ni nom ni écran. Pour utiliser un fichier du repo (logo, police, capture), COPIE-le dans assets/ (cp) : le rendu n'a accès qu'au dossier du projet.
+` : ""}- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
 
 const TOOLS = [
   "Read", "Write", "Edit", "Glob", "Grep", "Skill", "TodoWrite",
@@ -121,6 +167,7 @@ const TOOLS = [
   "Bash(hyperframes snapshot:*)", "Bash(hyperframes inspect:*)", "Bash(hyperframes docs:*)",
   "Bash(hyperframes info:*)", "Bash(hyperframes timeline:*)", "Bash(hyperframes compositions:*)",
   "Bash(hyperframes catalog:*)", "Bash(hyperframes add:*)", "Bash(ls:*)",
+  "Bash(cp:*)", "Bash(mkdir:*)", "Bash(cd:*)", "Bash(git log:*)", "Bash(git show:*)",
 ];
 // Mêmes sous-commandes via npx / npm run (le CLAUDE.md du projet les suggère).
 TOOLS.push(...TOOLS.filter((t) => t.startsWith("Bash(hyperframes ")).map((t) => t.replace("Bash(hyperframes ", "Bash(npx hyperframes ")),
@@ -140,7 +187,10 @@ async function runVersion(id, prompt) {
     "--permission-mode", "acceptEdits", "--allowedTools", ...TOOLS,
     "--disallowedTools", "WebFetch", "WebSearch", "Task"];
   if (m.sessionId) args.push("--resume", m.sessionId);
-  if (brandRef(m)) args.push("--add-dir", brandRef(m));
+  if (m.projects.length) {
+    for (const name of m.projects) await syncProject(id, name);
+    args.push("--add-dir", REPOS, join(dir(id), "context"));
+  }
   const before = fingerprint(project);
   const t0 = Date.now();
   const result = await runClaude(id, args, project);
@@ -263,11 +313,11 @@ async function createJob(body) {
   const model = MODELS.includes(body.model) ? body.model : "sonnet";
   const id = `${new Date().toISOString().slice(0, 10)}-${randomBytes(3).toString("hex")}`;
   mkdirSync(dir(id), { recursive: true });
-  const m = { id, title: "", createdAt: new Date().toISOString(), format, duration, model, brand: null, sessionId: null, status: "queued", error: null, uploads: [], versions: [] };
+  const m = { id, title: "", createdAt: new Date().toISOString(), format, duration, model, projects: [], sessionId: null, status: "queued", error: null, uploads: [], versions: [] };
   save(m);
   try {
     await initProject(id, m);
-    applyBrand(id, m, body.brand);
+    m.projects = await pickProjects(body.projects);
     m.uploads = saveUploads(id, body.files);
     save(m);
   } catch (e) { rmSync(dir(id), { recursive: true, force: true }); throw e; }
@@ -276,17 +326,26 @@ async function createJob(body) {
   return m;
 }
 
-function revise(id, body) {
+async function pickProjects(names) {
+  if (!Array.isArray(names) || !names.length) return [];
+  const known = new Set((await listProjects()).map((p) => p.name));
+  const bad = names.filter((n) => !known.has(n));
+  if (bad.length) throw httpErr(400, `repo inconnu : ${bad.join(", ")}`);
+  return [...new Set(names)].slice(0, 8);
+}
+
+async function revise(id, body) {
   const m = load(id);
   const prompt = String(body.prompt ?? "").trim();
   if (!prompt) throw httpErr(400, "prompt vide");
   if (["queued", "generating", "rendering"].includes(m.status)) throw httpErr(409, "job déjà en cours");
-  const branded = applyBrand(id, m, body.brand);
+  const added0 = (await pickProjects(body.projects)).filter((n) => !m.projects.includes(n));
+  m.projects.push(...added0);
   const added = saveUploads(id, body.files);
   m.uploads.push(...added.filter((n) => !m.uploads.includes(n)));
   setStatus(m, "queued");
   let full = prompt;
-  if (branded) full += `\n\n(Kit de marque « ${m.brand} » ajouté dans assets/brand/ : lis assets/brand/BRAND.md et applique-le.)`;
+  if (added0.length) full += `\n\n(Nouveaux projets de référence : ${added0.join(", ")} — voir la consigne système.)`;
   if (added.length) full += `\n\n(Nouveaux fichiers dans assets/uploads/ : ${added.join(", ")})`;
   enqueue(id, full);
   return m;
@@ -323,7 +382,7 @@ createServer(async (req, res) => {
       return res.end(readFileSync(join(HERE, "index.html")));
     }
     if (p[0] !== "api") throw httpErr(404, "introuvable");
-    if (p[1] === "brands" && req.method === "GET") return json(res, 200, listBrands());
+    if (p[1] === "projects" && req.method === "GET") return json(res, 200, await listProjects());
     if (p[1] === "health") return json(res, 200, { ok: true, busy, queued: queue.length });
     if (p[1] !== "jobs") throw httpErr(404, "introuvable");
 
@@ -341,7 +400,7 @@ createServer(async (req, res) => {
       rmSync(dir(id), { recursive: true, force: true });
       return json(res, 200, { ok: true });
     }
-    if (p[3] === "revise" && req.method === "POST") return json(res, 200, revise(id, await readBody(req)));
+    if (p[3] === "revise" && req.method === "POST") return json(res, 200, await revise(id, await readBody(req)));
     if (p[3] === "video" && req.method === "GET") {
       const file = join(dir(id), `v${Number(p[4]) || load(id).versions.filter((v) => v.file).length}.mp4`);
       if (!existsSync(file)) throw httpErr(404, "vidéo absente");
