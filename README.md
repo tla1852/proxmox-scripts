@@ -397,8 +397,11 @@ web **Studio** (prompt → Claude Code headless → MP4) — couche dans
   `hyperframes check`, puis rendu ; retouches dans la même session (`--resume`),
   versions v1, v2…, progression en direct (SSE). Outils Claude restreints
   (fichiers + sous-commandes `hyperframes` de vérification, pas de web)
-- Exposition : Caddy interne `hyperframes.ts.tlagrange.pro` → `<ip>:8080` +
-  extra-record MagicDNS (tailnet only, **aucune auth applicative**)
+- Exposition : `homelab/hyperframes/expose.sh` (hôte Proxmox) — vhost Caddy
+  interne `hyperframes.ts.tlagrange.pro` → `<ip>:8080` + extra-record MagicDNS,
+  et en option l'accès bureau (edge + Authelia + CNAME Gandi). Ajouts ciblés sur
+  les confs live (diff + confirmation + sauvegarde + rollback). **Aucune auth
+  applicative** : tailnet ou Authelia uniquement
 - Disque 16 Go, RAM 6144 Mo, 4 cœurs
 
 ```bash

@@ -17,7 +17,7 @@ ZONE="tlagrange.pro"
 TARGET="survivalmode.familyds.org."
 TTL=300
 NAMES=(auth vault recette ludo homarr read n8n qbit radar pdf sonar wallos
-       proxmox dsm telescope chat grafana veille clashbuzz-studio hammer guac)
+       proxmox dsm telescope chat grafana veille clashbuzz-studio hyperframes hammer guac)
 
 : "${GANDI_API_TOKEN:?GANDI_API_TOKEN manquant}"
 API="https://api.gandi.net/v5/livedns/domains/${ZONE}/records"
