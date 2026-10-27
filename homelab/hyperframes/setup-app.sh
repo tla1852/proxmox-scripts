@@ -193,6 +193,8 @@ pct exec "$VMID" -- env STUDIO_SRC="$STUDIO_SRC" STUDIO_PORT="$STUDIO_PORT" bash
 set -euo pipefail
 id studio >/dev/null 2>&1 || useradd --system --create-home --home-dir /srv/studio --shell /bin/bash studio
 install -d -o studio -g studio /srv/studio/jobs
+# Kits de marque (poussés en SSH par thibault, lus par studio) : /srv/brands/<slug>
+install -d -o thibault -g thibault -m 755 /srv/brands
 
 # Claude Code (installeur natif, dans ~studio/.local/bin, auto-update)
 su - studio -c 'command -v ~/.local/bin/claude >/dev/null || curl -fsSL https://claude.ai/install.sh | bash >/dev/null'

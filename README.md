@@ -397,6 +397,11 @@ web **Studio** (prompt → Claude Code headless → MP4) — couche dans
   `hyperframes check`, puis rendu ; retouches dans la même session (`--resume`),
   versions v1, v2…, progression en direct (SSE). Outils Claude restreints
   (fichiers + sous-commandes `hyperframes` de vérification, pas de web)
+- Kits de marque `/srv/brands/<slug>/{BRAND.md, assets/, ref/}` (menu « Marque »
+  du Studio) : charte + logos + polices + captures copiés dans le projet, code
+  source de l'app lisible par Claude ; poussés en SSH par thibault (ex.
+  `scripts/studio/sync-brand-kit.sh` de tla1852/blindtest). Pas de nouveau rendu si
+  Claude ne modifie rien
 - Exposition : `homelab/hyperframes/expose.sh` (hôte Proxmox) — vhost Caddy
   interne `hyperframes.ts.tlagrange.pro` → `<ip>:8080` + extra-record MagicDNS,
   et en option l'accès bureau (edge + Authelia + CNAME Gandi). Ajouts ciblés sur

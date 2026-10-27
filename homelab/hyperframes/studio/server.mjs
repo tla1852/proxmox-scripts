@@ -9,7 +9,7 @@
 
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
-import { createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, appendFileSync } from "node:fs";
+import { cpSync, createReadStream, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync, appendFileSync } from "node:fs";
 import { randomBytes } from "node:crypto";
 import { join, dirname, basename, extname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,6 +17,8 @@ import { fileURLToPath } from "node:url";
 const PORT = Number(process.env.PORT ?? 8080);
 const DATA = process.env.STUDIO_DATA ?? "/srv/studio";
 const JOBS = join(DATA, "jobs");
+// Kits de marque : <slug>/{BRAND.md, assets/, ref/} — ref = code source en lecture seule
+const BRANDS = process.env.STUDIO_BRANDS ?? "/srv/brands";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const CLAUDE_BIN = process.env.CLAUDE_BIN ?? "claude";
 const CLAUDE_TIMEOUT_MS = Number(process.env.CLAUDE_TIMEOUT_MIN ?? 20) * 60_000;
@@ -52,6 +54,40 @@ for (const id of readdirSync(JOBS)) {
   } catch {}
 }
 
+// ── Kits de marque ──────────────────────────────────────────────────────────
+function listBrands() {
+  if (!existsSync(BRANDS)) return [];
+  return readdirSync(BRANDS).filter((b) => /^[a-z0-9-]+$/.test(b) && existsSync(join(BRANDS, b, "BRAND.md"))).map((slug) => {
+    const title = /^#\s+(.+)$/m.exec(readFileSync(join(BRANDS, slug, "BRAND.md"), "utf8"))?.[1] ?? slug;
+    return { slug, title };
+  });
+}
+// Copie le kit dans le projet (assets/brand/) : Claude et le rendu y ont accès.
+function applyBrand(id, m, slug) {
+  if (!slug || slug === m.brand) return false;
+  if (!listBrands().some((b) => b.slug === slug)) throw httpErr(400, `marque inconnue : ${slug}`);
+  const dest = join(dir(id), "project", "assets", "brand");
+  rmSync(dest, { recursive: true, force: true });
+  mkdirSync(dest, { recursive: true });
+  cpSync(join(BRANDS, slug, "BRAND.md"), join(dest, "BRAND.md"));
+  if (existsSync(join(BRANDS, slug, "assets"))) cpSync(join(BRANDS, slug, "assets"), dest, { recursive: true });
+  m.brand = slug;
+  return true;
+}
+const brandRef = (m) => (m.brand && existsSync(join(BRANDS, m.brand, "ref")) ? join(BRANDS, m.brand, "ref") : null);
+
+// Empreinte du projet (chemins + tailles + dates) : rien de modifié → pas de rendu.
+function fingerprint(root) {
+  const out = [];
+  const walk = (d) => { for (const e of readdirSync(d, { withFileTypes: true })) {
+    const f = join(d, e.name);
+    if (e.isDirectory()) { if (e.name !== "node_modules" && e.name !== ".hyperframes") walk(f); }
+    else { const st = statSync(f); out.push(`${f}:${st.size}:${st.mtimeMs}`); }
+  } };
+  walk(root);
+  return out.sort().join("\n");
+}
+
 // ── File d'attente (un job à la fois : Claude puis rendu) ────────────────────
 const queue = [];
 let busy = false;
@@ -77,7 +113,7 @@ Contraintes :
 - Images fournies par l'utilisateur : assets/uploads/ (${m.uploads.length ? m.uploads.join(", ") : "aucune"}). Pas d'autre média externe que les bibliothèques déjà référencées.
 - Vérifie avec \`hyperframes check\` (et \`hyperframes snapshot\` si utile) jusqu'à zéro erreur. Le CLI est installé globalement : appelle \`hyperframes …\` directement, pas via npx ni npm run.
 - NE LANCE PAS \`hyperframes render\` : le studio rend lui-même la vidéo après toi.
-- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
+${m.brand ? `- Marque : ${m.brand}. Lis D'ABORD assets/brand/BRAND.md et respecte strictement la charte (couleurs, polices, logo, ton, libellés) ; les captures et logos sont dans assets/brand/.${brandRef(m) ? ` Code source de l'application, en LECTURE SEULE (ne rien y écrire) : ${brandRef(m)} — inspire-toi des vrais écrans, composants et textes plutôt que d'en inventer.` : ""}\n` : ""}- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
 
 const TOOLS = [
   "Read", "Write", "Edit", "Glob", "Grep", "Skill", "TodoWrite",
@@ -104,6 +140,8 @@ async function runVersion(id, prompt) {
     "--permission-mode", "acceptEdits", "--allowedTools", ...TOOLS,
     "--disallowedTools", "WebFetch", "WebSearch", "Task"];
   if (m.sessionId) args.push("--resume", m.sessionId);
+  if (brandRef(m)) args.push("--add-dir", brandRef(m));
+  const before = fingerprint(project);
   const t0 = Date.now();
   const result = await runClaude(id, args, project);
   if (result.sessionId) m.sessionId = result.sessionId;
@@ -112,6 +150,13 @@ async function runVersion(id, prompt) {
   v.claudeSec = Math.round((Date.now() - t0) / 1000);
   if (result.isError) throw new Error(`Claude : ${result.text || "échec"}`);
   if (!m.title || n === 1) m.title = firstLine(result.text) || prompt.slice(0, 60);
+
+  if (n > 1 && fingerprint(project) === before) {
+    v.status = "unchanged";
+    emit(id, { kind: "status", status: "done", note: "Claude n'a rien modifié : pas de nouveau rendu." });
+    m.status = "done";
+    return save(m);
+  }
 
   // 2. Rendu
   v.status = "rendering";
@@ -218,10 +263,11 @@ async function createJob(body) {
   const model = MODELS.includes(body.model) ? body.model : "sonnet";
   const id = `${new Date().toISOString().slice(0, 10)}-${randomBytes(3).toString("hex")}`;
   mkdirSync(dir(id), { recursive: true });
-  const m = { id, title: "", createdAt: new Date().toISOString(), format, duration, model, sessionId: null, status: "queued", error: null, uploads: [], versions: [] };
+  const m = { id, title: "", createdAt: new Date().toISOString(), format, duration, model, brand: null, sessionId: null, status: "queued", error: null, uploads: [], versions: [] };
   save(m);
   try {
     await initProject(id, m);
+    applyBrand(id, m, body.brand);
     m.uploads = saveUploads(id, body.files);
     save(m);
   } catch (e) { rmSync(dir(id), { recursive: true, force: true }); throw e; }
@@ -235,10 +281,14 @@ function revise(id, body) {
   const prompt = String(body.prompt ?? "").trim();
   if (!prompt) throw httpErr(400, "prompt vide");
   if (["queued", "generating", "rendering"].includes(m.status)) throw httpErr(409, "job déjà en cours");
+  const branded = applyBrand(id, m, body.brand);
   const added = saveUploads(id, body.files);
   m.uploads.push(...added.filter((n) => !m.uploads.includes(n)));
   setStatus(m, "queued");
-  enqueue(id, added.length ? `${prompt}\n\n(Nouveaux fichiers dans assets/uploads/ : ${added.join(", ")})` : prompt);
+  let full = prompt;
+  if (branded) full += `\n\n(Kit de marque « ${m.brand} » ajouté dans assets/brand/ : lis assets/brand/BRAND.md et applique-le.)`;
+  if (added.length) full += `\n\n(Nouveaux fichiers dans assets/uploads/ : ${added.join(", ")})`;
+  enqueue(id, full);
   return m;
 }
 
@@ -273,6 +323,7 @@ createServer(async (req, res) => {
       return res.end(readFileSync(join(HERE, "index.html")));
     }
     if (p[0] !== "api") throw httpErr(404, "introuvable");
+    if (p[1] === "brands" && req.method === "GET") return json(res, 200, listBrands());
     if (p[1] === "health") return json(res, 200, { ok: true, busy, queued: queue.length });
     if (p[1] !== "jobs") throw httpErr(404, "introuvable");
 
