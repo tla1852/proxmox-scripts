@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HyperFrames Studio</title>
+<style>
+  :root {
+    --bg: #111014; --panel: #1a181f; --line: #2c2933; --ink: #ece8f2; --mute: #9a94a6;
+    --accent: #ff5a8a; --ok: #4fd08a; --warn: #f0b44c; --err: #ff6b6b; --r: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  .app { display: grid; grid-template-columns: 300px 1fr; min-height: 100vh; }
+  aside { border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+  aside h1 { font-size: 17px; margin: 0 0 6px; letter-spacing: .02em; }
+  .new { background: var(--accent); color: #fff; border: 0; border-radius: var(--r); padding: 10px; cursor: pointer; font-weight: 600; }
+  .jobs { display: flex; flex-direction: column; gap: 4px; overflow: auto; }
+  .job { text-align: left; background: none; border: 1px solid transparent; border-radius: var(--r); padding: 8px 10px; cursor: pointer; }
+  .job:hover { background: var(--panel); }
+  .job.sel { background: var(--panel); border-color: var(--line); }
+  .job .t { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job .s { font-size: 12px; color: var(--mute); }
+  main { padding: 24px; max-width: 1100px; width: 100%; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+  textarea { width: 100%; min-height: 120px; resize: vertical; background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 12px; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-top: 12px; }
+  label { font-size: 13px; color: var(--mute); display: flex; gap: 6px; align-items: center; }
+  select, input[type=number] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+  input[type=number] { width: 70px; }
+  .go { margin-left: auto; background: var(--accent); color: #fff; border: 0; border-radius: var(--r); padding: 10px 18px; font-weight: 600; cursor: pointer; }
+  .go:disabled { opacity: .5; cursor: default; }
+  .view { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; margin-top: 16px; }
+  video { width: 100%; max-height: 70vh; background: #000; border-radius: var(--r); }
+  .vers { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .vers button { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 3px 12px; cursor: pointer; font-size: 13px; }
+  .vers button.sel { border-color: var(--accent); color: var(--accent); }
+  .log { height: 60vh; overflow: auto; font: 12.5px/1.5 ui-monospace, monospace; display: flex; flex-direction: column; gap: 4px; }
+  .log .claude { color: var(--ink); white-space: pre-wrap; font-family: system-ui, sans-serif; font-size: 14px; border-left: 2px solid var(--accent); padding-left: 8px; margin: 4px 0; }
+  .log .tool { color: var(--mute); }
+  .log .render { color: var(--warn); }
+  .log .version { color: var(--accent); font-weight: 600; margin-top: 10px; }
+  .log .status { color: var(--ok); }
+  .badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .badge.done { color: var(--ok); } .badge.error { color: var(--err); } .badge.generating, .badge.rendering, .badge.queued { color: var(--warn); }
+  .err { color: var(--err); white-space: pre-wrap; font-size: 13px; }
+  .head { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+  .head h2 { margin: 0; font-size: 18px; }
+  .ghost { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px; cursor: pointer; color: var(--mute); }
+  a { color: var(--accent); }
+  .muted { color: var(--mute); font-size: 13px; }
+  @media (max-width: 860px) {
+    .app { grid-template-columns: 1fr; } aside { border-right: 0; border-bottom: 1px solid var(--line); max-height: 40vh; }
+    .view { grid-template-columns: 1fr; } main { padding: 16px; } .log { height: 40vh; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>HyperFrames Studio</h1>
+    <button class="new" onclick="go(null)">+ Nouvelle vidéo</button>
+    <div class="jobs" id="jobs"></div>
+  </aside>
+  <main id="main"></main>
+</div>
+
+<template id="tpl-new">
+  <div class="card">
+    <textarea id="prompt" placeholder="Décris la vidéo : sujet, ambiance, textes à afficher, couleurs, rythme…"></textarea>
+    <div class="row">
+      <label>Format <select id="format"><option value="portrait">9:16 portrait</option><option value="landscape">16:9 paysage</option><option value="square">1:1 carré</option></select></label>
+      <label>Durée <input id="duration" type="number" min="3" max="60" value="10" /> s</label>
+      <label>Modèle <select id="model"><option value="sonnet">Sonnet (rapide)</option><option value="opus">Opus (soigné)</option></select></label>
+      <label>Fichiers <input id="files" type="file" multiple accept="image/*,audio/*,video/mp4" /></label>
+      <button class="go" id="send">Générer</button>
+    </div>
+    <p class="muted">Compter 1 à 3 min de génération par Claude, puis le rendu. Un job à la fois : les suivants attendent.</p>
+  </div>
+</template>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const LABEL = { queued: "en attente", generating: "Claude écrit", rendering: "rendu", done: "prête", error: "erreur" };
+let current = null, es = null, shownVersion = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, { headers: { "content-type": "application/json" }, ...opts });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(d.error || r.statusText);
+  return d;
+}
+
+async function readFiles(input) {
+  return Promise.all([...input.files].map((f) => new Promise((ok, ko) => {
+    const fr = new FileReader();
+    fr.onload = () => ok({ name: f.name, data: String(fr.result).split(",")[1] });
+    fr.onerror = ko; fr.readAsDataURL(f);
+  })));
+}
+
+async function refreshList() {
+  const jobs = await api("/api/jobs");
+  $("#jobs").innerHTML = jobs.map((j) => `<button class="job ${j.id === current ? "sel" : ""}" onclick="go('${j.id}')">
+    <span class="t">${esc(j.title || j.versions[0]?.prompt || j.id)}</span>
+    <span class="s"><span class="badge ${j.status}">${LABEL[j.status]}</span> · ${j.versions.length} version(s) · ${new Date(j.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
+  </button>`).join("") || `<p class="muted">Aucune vidéo pour l'instant.</p>`;
+}
+
+function go(id) {
+  current = id; shownVersion = null;
+  history.replaceState(null, "", id ? `#${id}` : "#");
+  es?.close(); es = null;
+  id ? showJob(id) : showNew();
+  refreshList();
+}
+
+function showNew() {
+  $("#main").replaceChildren($("#tpl-new").content.cloneNode(true));
+  $("#send").onclick = async () => {
+    const btn = $("#send"); btn.disabled = true; btn.textContent = "Envoi…";
+    try {
+      const job = await api("/api/jobs", { method: "POST", body: JSON.stringify({
+        prompt: $("#prompt").value, format: $("#format").value, duration: $("#duration").value,
+        model: $("#model").value, files: await readFiles($("#files")) }) });
+      go(job.id);
+    } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = "Générer"; }
+  };
+  $("#prompt").focus();
+}
+
+async function showJob(id) {
+  const j = await api(`/api/jobs/${id}`);
+  $("#main").innerHTML = `
+    <div class="head"><h2>${esc(j.title || "Nouvelle vidéo")}</h2>
+      <span><span class="badge ${j.status}" id="badge">${LABEL[j.status]}</span>
+      <button class="ghost" onclick="del('${id}')">Supprimer</button></span></div>
+    <p class="muted">${j.format} · ${j.duration} s · ${j.model}${j.uploads.length ? " · fichiers : " + esc(j.uploads.join(", ")) : ""}</p>
+    <div class="view">
+      <div>
+        <div class="vers" id="vers"></div>
+        <div id="player"></div>
+        <div class="card" style="margin-top:12px">
+          <textarea id="rev" placeholder="Retouche : « plus lent », « texte plus gros », « ajoute le logo à la fin »…" style="min-height:80px"></textarea>
+          <div class="row"><label>Fichiers <input id="rfiles" type="file" multiple accept="image/*,audio/*,video/mp4" /></label>
+          <button class="go" id="rsend">Retoucher</button></div>
+        </div>
+      </div>
+      <div class="card log" id="log"></div>
+    </div>`;
+  $("#rsend").onclick = async () => {
+    const btn = $("#rsend"); btn.disabled = true;
+    try {
+      await api(`/api/jobs/${id}/revise`, { method: "POST", body: JSON.stringify({ prompt: $("#rev").value, files: await readFiles($("#rfiles")) }) });
+      $("#rev").value = ""; $("#rfiles").value = "";
+    } catch (e) { alert(e.message); }
+    btn.disabled = false;
+  };
+  render(j);
+  es = new EventSource(`/api/jobs/${id}/events`);
+  es.onmessage = (m) => {
+    const ev = JSON.parse(m.data);
+    logLine(ev);
+    if (ev.kind === "status") api(`/api/jobs/${id}`).then(render).then(refreshList).catch(() => {});
+  };
+}
+
+function render(j) {
+  if (j.id !== current) return;
+  $("#badge").className = `badge ${j.status}`; $("#badge").textContent = LABEL[j.status];
+  const ready = j.versions.filter((v) => v.file);
+  if (!shownVersion || !ready.some((v) => v.n === shownVersion)) shownVersion = ready.at(-1)?.n ?? null;
+  $("#vers").innerHTML = ready.map((v) => `<button class="${v.n === shownVersion ? "sel" : ""}" title="${esc(v.prompt)}" onclick="pick(${v.n})">v${v.n}</button>`).join("");
+  const v = ready.find((x) => x.n === shownVersion);
+  const cur = $("#player video");
+  if (v && cur?.dataset.n !== String(v.n)) {
+    $("#player").innerHTML = `<video controls loop playsinline data-n="${v.n}" src="/api/jobs/${j.id}/video/${v.n}"></video>
+      <p class="muted">v${v.n} — ${esc(v.summary?.split("\n").filter(Boolean).pop() ?? "")}<br>Claude ${v.claudeSec ?? "?"} s · rendu ${v.renderSec ?? "?"} s · ${(v.bytes / 1e6).toFixed(1)} Mo ·
+      <a href="/api/jobs/${j.id}/video/${v.n}" download="${j.id}-v${v.n}.mp4">télécharger</a></p>`;
+  } else if (!v) $("#player").innerHTML = `<p class="muted">Pas encore de vidéo.</p>`;
+  if (j.status === "error" && j.error && !$("#player .err")) $("#player").insertAdjacentHTML("beforeend", `<p class="err">${esc(j.error)}</p>`);
+  const busy = ["queued", "generating", "rendering"].includes(j.status);
+  $("#rsend").disabled = busy;
+}
+
+function pick(n) { shownVersion = n; api(`/api/jobs/${current}`).then(render); }
+
+function logLine(ev) {
+  const log = $("#log"); if (!log) return;
+  const stick = log.scrollTop + log.clientHeight >= log.scrollHeight - 30;
+  const txt = { claude: ev.text, tool: `→ ${ev.name} ${ev.detail ?? ""}`, render: ev.text,
+    version: `— Version ${ev.n} : ${ev.prompt}`, status: `● ${LABEL[ev.status] ?? ev.status}${ev.error ? " — " + ev.error : ""}` }[ev.kind];
+  if (txt == null) return;
+  const el = document.createElement("div"); el.className = ev.kind; el.textContent = txt;
+  log.append(el);
+  if (stick) log.scrollTop = log.scrollHeight;
+}
+
+async function del(id) {
+  if (!confirm("Supprimer cette vidéo et toutes ses versions ?")) return;
+  try { await api(`/api/jobs/${id}`, { method: "DELETE" }); go(null); } catch (e) { alert(e.message); }
+}
+
+go(location.hash.slice(1) || null);
+setInterval(refreshList, 15000);
+</script>
+</body>
+</html>

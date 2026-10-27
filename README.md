@@ -375,3 +375,32 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 forwards routeur directs (21115/tcp, 21116/tcp+udp, 21117/tcp) vers le CT, avec bail
 DHCP fixe. Sauvegarder `/opt/rustdesk/data/id_ed25519`
 (la perdre = reconfigurer tous les clients).
+
+## create-lxc-hyperframes.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus un poste de **rendu vidéo
+[HyperFrames](https://hyperframes.heygen.com)** (HTML + GSAP → MP4 via Chrome
+headless + FFmpeg, même pile que `apps/recap` de tla1852/blindtest) et une page
+web **Studio** (prompt → Claude Code headless → MP4) — couche dans
+`homelab/hyperframes/setup-app.sh` (relançable seule avec le VMID) :
+
+- hyperframes 0.8.205, gsap 3.14.2, chrome-headless-shell 152.0.7977.30, FFmpeg
+  n8.0.1 **épinglés** (vérifié par empreinte) → rendu identique à Cloud Run
+- `hf-render <projet> [sortie.mp4]` : un rendu à la fois (flock), nice/ionice ;
+  `cpuunits 50` sur le CT pour céder la place aux autres guests
+- SSH par clés uniquement (clés demandées) → rendus pilotables par Claude depuis
+  claude-dev ou les PC : `rsync` du projet dans `~/jobs/x`, `ssh … hf-render`, `scp` du MP4
+- **Studio** (`homelab/hyperframes/studio/`, Node 22 sans dépendance, port 8080,
+  utilisateur `studio`, données `/srv/studio/jobs`) : prompt + format + durée +
+  modèle + fichiers joints → Claude Code (abonnement, jeton `claude setup-token`
+  dans `/etc/hyperframes-studio.env`) écrit la composition, vérifie avec
+  `hyperframes check`, puis rendu ; retouches dans la même session (`--resume`),
+  versions v1, v2…, progression en direct (SSE). Outils Claude restreints
+  (fichiers + sous-commandes `hyperframes` de vérification, pas de web)
+- Exposition : Caddy interne `hyperframes.ts.tlagrange.pro` → `<ip>:8080` +
+  extra-record MagicDNS (tailnet only, **aucune auth applicative**)
+- Disque 16 Go, RAM 6144 Mo, 4 cœurs
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-hyperframes.sh)
+```
