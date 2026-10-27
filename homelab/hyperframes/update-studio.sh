@@ -48,7 +48,8 @@ else
         grep -v '^L5_API_READ_TOKEN=' \$f > \$f.tmp || true; printf 'L5_API_READ_TOKEN=%s\n' \"\$v\" >> \$f.tmp
         cat \$f.tmp > \$f; rm -f \$f.tmp"
 fi
-pct exec "$L5_CT" -- bash -c "cd ${L5_DIR} && git pull -q --ff-only && docker compose up -d --build api >/dev/null 2>&1" \
+# safe.directory : /opt/l5 n'appartient pas au root vu par pct exec ; HOME pour le credential store git
+pct exec "$L5_CT" -- env HOME=/root bash -c "cd ${L5_DIR} && git -c safe.directory=${L5_DIR} pull -q --ff-only && docker compose up -d --build api >/dev/null 2>&1" \
     || err "Rebuild Télescope en échec : pct exec ${L5_CT} -- bash -c 'cd ${L5_DIR} && docker compose logs --tail 30 api'"
 info "Télescope reconstruit."
 
