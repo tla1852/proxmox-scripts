@@ -75,7 +75,7 @@ const systemPrompt = (m) => `Tu es le moteur d'un studio vidéo. Le dossier cour
 Contraintes :
 - Format ${FORMATS[m.format]} (${m.format}), durée visée ${m.duration} s, sauf si la demande dit autrement.
 - Images fournies par l'utilisateur : assets/uploads/ (${m.uploads.length ? m.uploads.join(", ") : "aucune"}). Pas d'autre média externe que les bibliothèques déjà référencées.
-- Vérifie avec \`hyperframes check\` (et \`hyperframes snapshot\` si utile) jusqu'à zéro erreur.
+- Vérifie avec \`hyperframes check\` (et \`hyperframes snapshot\` si utile) jusqu'à zéro erreur. Le CLI est installé globalement : appelle \`hyperframes …\` directement, pas via npx ni npm run.
 - NE LANCE PAS \`hyperframes render\` : le studio rend lui-même la vidéo après toi.
 - Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
 
@@ -86,6 +86,9 @@ const TOOLS = [
   "Bash(hyperframes info:*)", "Bash(hyperframes timeline:*)", "Bash(hyperframes compositions:*)",
   "Bash(hyperframes catalog:*)", "Bash(hyperframes add:*)", "Bash(ls:*)",
 ];
+// Mêmes sous-commandes via npx / npm run (le CLAUDE.md du projet les suggère).
+TOOLS.push(...TOOLS.filter((t) => t.startsWith("Bash(hyperframes ")).map((t) => t.replace("Bash(hyperframes ", "Bash(npx hyperframes ")),
+  "Bash(npm run check:*)", "Bash(npm run lint:*)");
 
 async function runVersion(id, prompt) {
   const m = load(id);
