@@ -159,7 +159,8 @@ ${m.projects.length ? `- Projets de référence de l'utilisateur (ce sont SES ap
   * code source à jour en LECTURE SEULE dans ${REPOS}/<projet> : lis README, CLAUDE.md, docs/ et le code des écrans (composants, CSS, libellés). S'il existe, docs/studio/BRAND.md est la charte à respecter en priorité. \`git log\` y donne l'historique.
   * journal Télescope ${join(dir(m.id), "context")}/<projet>.md : ce qui a été livré, daté — la source pour « ce que j'ai fait ».
   * Reproduis fidèlement couleurs, polices, logos, écrans et libellés réels ; n'invente ni nom ni écran. Pour utiliser un fichier du repo (logo, police, capture), COPIE-le dans assets/ (cp) : le rendu n'a accès qu'au dossier du projet.
-` : ""}- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
+` : ""}- Données réelles : les captures (repo ou fichiers fournis) peuvent montrer de vraies personnes, équipes, clients, e-mails ou chiffres. N'en affiche JAMAIS aucun en clair : remplace-les par des noms fictifs neutres et de bon goût (« Équipe Rose », « Léa »…). Une capture contenant ces données ne s'utilise que reconstruite en HTML avec des données fictives, ou avec un masque opaque ou flouté (CSS) posé sur chaque zone concernée. En fin de réponse, liste les captures utilisées et ce que tu as masqué.
+- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
 
 const TOOLS = [
   "Read", "Write", "Edit", "Glob", "Grep", "Skill", "TodoWrite",
