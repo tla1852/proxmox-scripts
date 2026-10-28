@@ -149,6 +149,10 @@ async function pump() {
   } finally { busy = false; pump(); }
 }
 
+// Vidéo vitrine : Opus imposé + exigence de finition (diffusion publique).
+const VITRINE = `- VIDÉO VITRINE (diffusion publique : réseaux, site, présentation commerciale) : niveau de finition maximal. Écris d'abord un découpage (SPEC.md) : message, rythme, scènes. Soigne transitions, hiérarchie typographique, lisibilité (texte assez gros, interface assez grande pour être lue sur mobile), cohérence des données d'une scène à l'autre. Avant de conclure, relis-toi avec \`hyperframes snapshot\` à plusieurs instants (début, chaque scène, fin) et corrige ce qui est vide, tronqué, illisible ou incohérent ; consigne le bilan dans REVIEW.md.
+`;
+
 const systemPrompt = (m) => `Tu es le moteur d'un studio vidéo. Le dossier courant est un projet HyperFrames déjà initialisé (index.html, hyperframes.json, CLAUDE.md, AGENTS.md) : lis CLAUDE.md et suis le skill hyperframes.
 Contraintes :
 - Format ${FORMATS[m.format]} (${m.format}), durée visée ${m.duration} s, sauf si la demande dit autrement.
@@ -159,8 +163,8 @@ ${m.projects.length ? `- Projets de référence de l'utilisateur (ce sont SES ap
   * code source à jour en LECTURE SEULE dans ${REPOS}/<projet> : lis README, CLAUDE.md, docs/ et le code des écrans (composants, CSS, libellés). S'il existe, docs/studio/BRAND.md est la charte à respecter en priorité. \`git log\` y donne l'historique.
   * journal Télescope ${join(dir(m.id), "context")}/<projet>.md : ce qui a été livré, daté — la source pour « ce que j'ai fait ».
   * Reproduis fidèlement couleurs, polices, logos, écrans et libellés réels ; n'invente ni nom ni écran. Pour utiliser un fichier du repo (logo, police, capture), COPIE-le dans assets/ (cp) : le rendu n'a accès qu'au dossier du projet.
-` : ""}- Données réelles : les captures (repo ou fichiers fournis) peuvent montrer de vraies personnes, équipes, clients, e-mails ou chiffres. N'en affiche JAMAIS aucun en clair : remplace-les par des noms fictifs neutres et de bon goût (« Équipe Rose », « Léa »…). Une capture contenant ces données ne s'utilise que reconstruite en HTML avec des données fictives, ou avec un masque opaque ou flouté (CSS) posé sur chaque zone concernée. En fin de réponse, liste les captures utilisées et ce que tu as masqué.
-- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
+` : ""}- Données réelles : les captures, maquettes, données de test et fichiers du repo ou fournis peuvent montrer de vraies personnes, équipes, clients, pseudos, surnoms, e-mails, codes ou chiffres (scores, statistiques, montants, compteurs). N'en affiche JAMAIS aucun : noms, pseudos et surnoms → fictifs neutres et de bon goût (« Équipe Rose », « Léa », « Sami »…) ; chiffres → inventés mais cohérents entre eux d'une scène à l'autre ; codes → fictifs. Dans le doute (un pseudo qui ressemble à un vrai surnom), remplace. Une capture contenant ces données ne s'utilise que reconstruite en HTML avec des données fictives, ou avec un masque opaque ou flouté (CSS) posé sur chaque zone concernée. En fin de réponse, liste les captures utilisées et ce que tu as masqué.
+${m.vitrine ? VITRINE : ""}- Réponds en français. Termine par une phrase qui décrit la vidéo obtenue.`;
 
 const TOOLS = [
   "Read", "Write", "Edit", "Glob", "Grep", "Skill", "TodoWrite",
@@ -311,10 +315,11 @@ async function createJob(body) {
   if (!prompt) throw httpErr(400, "prompt vide");
   const format = FORMATS[body.format] ? body.format : "portrait";
   const duration = Math.min(60, Math.max(3, Number(body.duration) || 10));
-  const model = MODELS.includes(body.model) ? body.model : "sonnet";
+  const vitrine = !!body.vitrine;
+  const model = vitrine ? "opus" : MODELS.includes(body.model) ? body.model : "sonnet";
   const id = `${new Date().toISOString().slice(0, 10)}-${randomBytes(3).toString("hex")}`;
   mkdirSync(dir(id), { recursive: true });
-  const m = { id, title: "", createdAt: new Date().toISOString(), format, duration, model, projects: [], sessionId: null, status: "queued", error: null, uploads: [], versions: [] };
+  const m = { id, title: "", createdAt: new Date().toISOString(), format, duration, model, vitrine, projects: [], sessionId: null, status: "queued", error: null, uploads: [], versions: [] };
   save(m);
   try {
     await initProject(id, m);

@@ -78,11 +78,12 @@
       <label>Format <select id="format"><option value="portrait">9:16 portrait</option><option value="landscape">16:9 paysage</option><option value="square">1:1 carré</option></select></label>
       <label>Durée <input id="duration" type="number" min="3" max="60" value="10" /> s</label>
       <label>Modèle <select id="model"><option value="sonnet">Sonnet (rapide)</option><option value="opus">Opus (soigné)</option></select></label>
+      <label title="Diffusion publique : Opus imposé, découpage, relecture image par image"><input type="checkbox" id="vitrine" /> Vidéo vitrine</label>
       <label>Fichiers <input id="files" type="file" multiple accept="image/*,audio/*,video/mp4" /></label>
       <button class="go" id="send">Générer</button>
     </div>
     <div class="picker" id="pick"></div>
-    <p class="muted">Compter 1 à 3 min de génération par Claude, puis le rendu. Un job à la fois : les suivants attendent.</p>
+    <p class="muted">Durées observées (40 s, un projet coché) : Sonnet ≈ 6–7 min, Opus / vitrine ≈ 12 min, rendu inclus. Un job à la fois : les suivants attendent.</p>
   </div>
 </template>
 
@@ -125,7 +126,7 @@ async function readFiles(input) {
 async function refreshList() {
   const jobs = await api("/api/jobs");
   $("#jobs").innerHTML = jobs.map((j) => `<button class="job ${j.id === current ? "sel" : ""}" onclick="go('${j.id}')">
-    <span class="t">${esc(j.title || j.versions[0]?.prompt || j.id)}</span>
+    <span class="t">${j.vitrine ? "★ " : ""}${esc(j.title || j.versions[0]?.prompt || j.id)}</span>
     <span class="s"><span class="badge ${j.status}">${LABEL[j.status]}</span> · ${j.versions.length} version(s) · ${new Date(j.createdAt).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}</span>
   </button>`).join("") || `<p class="muted">Aucune vidéo pour l'instant.</p>`;
 }
@@ -145,11 +146,15 @@ function showNew() {
     try {
       const job = await api("/api/jobs", { method: "POST", body: JSON.stringify({
         prompt: $("#prompt").value, format: $("#format").value, duration: $("#duration").value,
-        model: $("#model").value, projects: pickNew(), files: await readFiles($("#files")) }) });
+        model: $("#model").value, vitrine: $("#vitrine").checked, projects: pickNew(), files: await readFiles($("#files")) }) });
       go(job.id);
     } catch (e) { alert(e.message); btn.disabled = false; btn.textContent = "Générer"; }
   };
   pickNew = picker($("#pick"));
+  $("#vitrine").onchange = (e) => {
+    $("#model").disabled = e.target.checked;
+    if (e.target.checked) $("#model").value = "opus";
+  };
   $("#prompt").focus();
 }
 
@@ -159,7 +164,7 @@ async function showJob(id) {
     <div class="head"><h2>${esc(j.title || "Nouvelle vidéo")}</h2>
       <span><span class="badge ${j.status}" id="badge">${LABEL[j.status]}</span>
       <button class="ghost" onclick="del('${id}')">Supprimer</button></span></div>
-    <p class="muted">${j.format} · ${j.duration} s · ${j.model}${j.projects?.length ? " · projets : " + esc(j.projects.join(", ")) : ""}${j.uploads.length ? " · fichiers : " + esc(j.uploads.join(", ")) : ""}</p>
+    <p class="muted">${j.format} · ${j.duration} s · ${j.model}${j.vitrine ? " · ★ vitrine" : ""}${j.projects?.length ? " · projets : " + esc(j.projects.join(", ")) : ""}${j.uploads.length ? " · fichiers : " + esc(j.uploads.join(", ")) : ""}</p>
     <div class="view">
       <div>
         <div class="vers" id="vers"></div>
