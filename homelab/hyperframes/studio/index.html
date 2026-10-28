@@ -207,7 +207,7 @@ function render(j) {
   const cur = $("#player video");
   if (v && cur?.dataset.n !== String(v.n)) {
     $("#player").innerHTML = `<video controls loop playsinline data-n="${v.n}" src="/api/jobs/${j.id}/video/${v.n}"></video>
-      <p class="muted">v${v.n} — ${esc(v.summary?.split("\n").filter(Boolean).pop() ?? "")}<br>Claude ${v.claudeSec ?? "?"} s · rendu ${v.renderSec ?? "?"} s · ${(v.bytes / 1e6).toFixed(1)} Mo ·
+      <p class="muted">v${v.n} — ${esc(v.summary?.split("\n").filter(Boolean).pop() ?? "")}<br>Claude ${v.claudeSec ?? "?"} s${v.usage ? ` (${v.usage.turns ?? "?"} tours, ${Math.round(((v.usage.output_tokens ?? 0)) / 1000)}k tokens écrits, ${Math.round(((v.usage.cache_read_input_tokens ?? 0) + (v.usage.input_tokens ?? 0) + (v.usage.cache_creation_input_tokens ?? 0)) / 1000)}k lus)` : ""} · rendu ${v.renderSec ?? "?"} s · ${(v.bytes / 1e6).toFixed(1)} Mo ·
       <a href="/api/jobs/${j.id}/video/${v.n}" download="${j.id}-v${v.n}.mp4">télécharger</a></p>`;
   } else if (!v) $("#player").innerHTML = `<p class="muted">Pas encore de vidéo.</p>`;
   if (j.status === "error" && j.error && !$("#player .err")) {

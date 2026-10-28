@@ -202,6 +202,7 @@ async function runVersion(id, prompt) {
   if (result.sessionId) m.sessionId = result.sessionId;
   const v = m.versions[n - 1];
   v.summary = result.text;
+  if (result.usage) v.usage = result.usage; // tokens de la génération (équivalent API indicatif : abonnement)
   v.claudeSec = Math.round((Date.now() - t0) / 1000);
   if (result.isError) throw new Error(`Claude : ${result.text || "échec"}`);
   if (!m.title || n === 1) m.title = firstLine(result.text) || prompt.slice(0, 60);
@@ -264,7 +265,8 @@ function runClaude(id, args, cwd) {
             if (c.type === "tool_use") emit(id, { kind: "tool", name: c.name, detail: toolDetail(c.input) });
           }
         } else if (ev.type === "result") {
-          out = { sessionId: ev.session_id ?? out.sessionId, text: ev.result ?? "", isError: !!ev.is_error };
+          out = { sessionId: ev.session_id ?? out.sessionId, text: ev.result ?? "", isError: !!ev.is_error,
+            usage: { turns: ev.num_turns, costUsd: ev.total_cost_usd, ...ev.usage } };
         }
       }
     });
