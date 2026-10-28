@@ -210,9 +210,20 @@ function render(j) {
       <p class="muted">v${v.n} — ${esc(v.summary?.split("\n").filter(Boolean).pop() ?? "")}<br>Claude ${v.claudeSec ?? "?"} s · rendu ${v.renderSec ?? "?"} s · ${(v.bytes / 1e6).toFixed(1)} Mo ·
       <a href="/api/jobs/${j.id}/video/${v.n}" download="${j.id}-v${v.n}.mp4">télécharger</a></p>`;
   } else if (!v) $("#player").innerHTML = `<p class="muted">Pas encore de vidéo.</p>`;
-  if (j.status === "error" && j.error && !$("#player .err")) $("#player").insertAdjacentHTML("beforeend", `<p class="err">${esc(j.error)}</p>`);
+  if (j.status === "error" && j.error && !$("#player .err")) {
+    const last = j.versions.at(-1);
+    const again = last && !last.file && last.summary != null;
+    $("#player").insertAdjacentHTML("beforeend", `<p class="err">${esc(j.error)}</p>${again
+      ? `<p><button class="go" style="margin:0" onclick="rerender('${j.id}', this)">Relancer le rendu de v${last.n}</button> <span class="muted">sans repasser par Claude</span></p>` : ""}`);
+  }
   const busy = ["queued", "generating", "rendering"].includes(j.status);
   $("#rsend").disabled = busy;
+}
+
+async function rerender(id, btn) {
+  btn.disabled = true;
+  try { await api(`/api/jobs/${id}/render`, { method: "POST" }); $("#player .err")?.remove(); btn.parentElement.remove(); }
+  catch (e) { alert(e.message); btn.disabled = false; }
 }
 
 function pick(n) { shownVersion = n; api(`/api/jobs/${current}`).then(render); }

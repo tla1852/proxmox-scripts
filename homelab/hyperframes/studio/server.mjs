@@ -133,15 +133,15 @@ function fingerprint(root) {
 // ── File d'attente (un job à la fois : Claude puis rendu) ────────────────────
 const queue = [];
 let busy = false;
-function enqueue(id, prompt) {
-  queue.push({ id, prompt });
+function enqueue(id, prompt, renderOnly = false) {
+  queue.push({ id, prompt, renderOnly });
   pump();
 }
 async function pump() {
   if (busy || !queue.length) return;
   busy = true;
-  const { id, prompt } = queue.shift();
-  try { await runVersion(id, prompt); } catch (e) {
+  const { id, prompt, renderOnly } = queue.shift();
+  try { await (renderOnly ? rerender(id) : runVersion(id, prompt)); } catch (e) {
     const m = load(id);
     const v = m.versions.at(-1);
     if (v && v.status !== "done") v.status = "error";
@@ -214,16 +214,31 @@ async function runVersion(id, prompt) {
   }
 
   // 2. Rendu
+  await render(m, v);
+}
+
+async function render(m, v) {
+  const project = join(dir(m.id), "project");
   v.status = "rendering";
-  setStatus(m, "rendering");
-  const out = join(dir(id), `v${n}.mp4`);
+  setStatus(m, "rendering", { error: null });
+  const out = join(dir(m.id), `v${v.n}.mp4`);
   const t1 = Date.now();
-  await runLogged(id, "render", "hf-render", [project, out], project);
+  await runLogged(m.id, "render", "hf-render", [project, out], project);
   v.renderSec = Math.round((Date.now() - t1) / 1000);
   v.file = basename(out);
   v.bytes = statSync(out).size;
   v.status = "done";
   setStatus(m, "done");
+}
+
+// Rendu seul de la dernière version (Claude a fini, le rendu a échoué ou a
+// été interrompu) : pas de nouvel appel à Claude.
+const canRerender = (m) => { const v = m.versions.at(-1); return !!(v && !v.file && v.summary != null && m.status === "error"); };
+async function rerender(id) {
+  const m = load(id);
+  const v = m.versions.at(-1);
+  emit(id, { kind: "version", n: v.n, prompt: "(relance du rendu)" });
+  await render(m, v);
 }
 
 function firstLine(s = "") {
@@ -405,6 +420,13 @@ createServer(async (req, res) => {
       if (["queued", "generating", "rendering"].includes(load(id).status)) throw httpErr(409, "job en cours");
       rmSync(dir(id), { recursive: true, force: true });
       return json(res, 200, { ok: true });
+    }
+    if (p[3] === "render" && req.method === "POST") {
+      const m = load(id);
+      if (!canRerender(m)) throw httpErr(409, "rien à rendre (dernière version déjà rendue, ou Claude n'a pas terminé)");
+      setStatus(m, "queued");
+      enqueue(id, null, true);
+      return json(res, 200, m);
     }
     if (p[3] === "revise" && req.method === "POST") return json(res, 200, await revise(id, await readBody(req)));
     if (p[3] === "video" && req.method === "GET") {
