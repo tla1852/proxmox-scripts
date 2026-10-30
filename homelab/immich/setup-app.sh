@@ -5,23 +5,24 @@
 #
 #   bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/homelab/immich/setup-app.sh) <VMID>
 #
-# - Partage NFS du Synology monté SUR L'HÔTE (/mnt/immich, fstab, monté avant
-#   le démarrage des guests) puis passé au CT en bind mount (mp0) : un CT non
-#   privilégié ne peut pas monter de NFS lui-même. Le point de montage vide est
-#   rendu immuable (chattr +i) : si le NAS manque, rien ne s'écrit sur le disque
-#   de l'hôte, et Immich refuse de démarrer (fichiers témoins .immich absents)
+# - Photos dans un dossier d'un stockage NFS Proxmox existant (défaut :
+#   /mnt/pve/nas-partage/Immich, stockage « nas-partage » = 192.168.1.102:
+#   /volume1/partage) passé au CT en bind mount (mp0 → /mnt/immich) : un CT non
+#   privilégié ne peut pas monter de NFS lui-même. Le partage est en root squash :
+#   pas de chown possible, mais le root du CT arrive en uid 100000 (non squashé)
+#   et le dossier est en 777 → Immich écrit. Si le NAS manque au boot, le dossier
+#   n'existe pas : le CT ne démarre pas (rien n'est écrit sur l'hôte), et Immich
+#   refuse de toute façon de démarrer sans ses fichiers témoins .immich
+# - Service hôte immich-nas-wait (avant pve-guests) : active le stockage et
+#   attend son montage, pour que le démarrage auto du CT ne le devance pas
 # - Immich IMMICH_VERSION épinglé, compose + example.env officiels de la
 #   release, ML sur CPU, photos sur NFS, Postgres en LOCAL (/opt/immich/postgres :
 #   Immich ne supporte pas la base sur un partage réseau)
 # - Compte admin créé par l'API dès le démarrage (pas de fenêtre « premier
 #   arrivé = admin »), domaine externe réglé pour les liens de partage
 #
-# Prérequis DSM (Panneau de configuration) :
-#   1. Dossier partagé « immich » (ex. /volume1/immich), sans corbeille
-#   2. Services de fichiers > NFS : activé, NFSv4.1
-#   3. Dossier « immich » > Autorisations NFS : IP de l'HÔTE Proxmox,
-#      Lecture/Écriture, Squash « Pas de mappage », sécurité sys,
-#      « Autoriser les connexions depuis des ports non privilégiés » coché
+# Prérequis : le dossier existe déjà sur le stockage, inscriptible par tous
+# (777) ou par l'uid 100000. Autre emplacement : HOST_DIR=/mnt/pve/<stockage>/<dossier>
 
 set -euo pipefail
 
@@ -41,18 +42,13 @@ IMMICH_VERSION="v3.3.5"
 IMMICH_RELEASE="https://github.com/immich-app/immich/releases/download/${IMMICH_VERSION}"
 IMMICH_PORT="2283"
 PUBLIC_URL="https://photos.survivalmode.familyds.org"
-MNT="/mnt/immich"
-# root d'un CT non privilégié = uid 100000 côté hôte (et donc côté NAS)
-CT_ROOT_UID="100000"
+MNT="/mnt/immich"                                     # chemin dans le CT
+HOST_DIR="${HOST_DIR:-/mnt/pve/nas-partage/Immich}"   # chemin sur l'hôte
+STORAGE_ID=$(echo "$HOST_DIR" | sed -nE 's|^/mnt/pve/([^/]+)/.*|\1|p')
 
 info "Configuration d'Immich ${IMMICH_VERSION} (CT ${VMID})..."
 
 # ----- Questions -----
-read -rp "IP du NAS Synology : " NAS_IP
-[[ "$NAS_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] || err "IP invalide."
-read -rp "Chemin exporté [/volume1/immich] : " NAS_EXPORT; NAS_EXPORT="${NAS_EXPORT:-/volume1/immich}"
-[[ "$NAS_EXPORT" =~ ^/[A-Za-z0-9/_.-]+$ ]] || err "Chemin invalide."
-
 read -rp "E-mail du compte admin Immich : " IMMICH_ADMIN_EMAIL
 [[ "$IMMICH_ADMIN_EMAIL" =~ ^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$ ]] || err "E-mail invalide."
 while true; do
@@ -63,33 +59,39 @@ while true; do
 done
 unset IMMICH_ADMIN_PASS2
 
-# ----- NFS sur l'hôte -----
-info "Montage NFS ${NAS_IP}:${NAS_EXPORT} → ${MNT} (hôte)..."
-command -v mount.nfs >/dev/null || { apt-get update -qq; apt-get -y -qq install nfs-common >/dev/null; }
-if ! mountpoint -q "$MNT"; then
-    mkdir -p "$MNT"
-    # Immuable tant que rien n'est monté dessus : NAS absent = écriture refusée
-    chattr +i "$MNT"
-fi
-FSTAB_LINE="${NAS_IP}:${NAS_EXPORT} ${MNT} nfs defaults,hard,noatime,_netdev,nofail,x-systemd.before=pve-guests.service 0 0"
-if grep -qE "[[:space:]]${MNT}[[:space:]]" /etc/fstab; then
-    grep -qF "$FSTAB_LINE" /etc/fstab || warn "Entrée ${MNT} déjà dans /etc/fstab mais différente : conservée telle quelle."
-else
-    cp -p /etc/fstab "/etc/fstab.bak-$(date +%Y%m%d-%H%M%S)"
-    echo "$FSTAB_LINE" >> /etc/fstab
+# ----- Dossier photos sur l'hôte -----
+[[ -n "$STORAGE_ID" ]] && { pvesm status --storage "$STORAGE_ID" >/dev/null 2>&1 || true; }
+[[ -d "$HOST_DIR" ]] || err "${HOST_DIR} introuvable : stockage non monté ou dossier absent."
+info "Photos : ${HOST_DIR} ($(df -h "$HOST_DIR" | awk 'NR==2 {print $4" libres sur "$2}'))"
+
+# Au boot, les stockages NFS de Proxmox se montent sans ordre garanti vis-à-vis
+# du démarrage auto des guests : on attend le montage avant pve-guests.
+if [[ -n "$STORAGE_ID" && ! -f /etc/systemd/system/immich-nas-wait.service ]]; then
+    cat > /etc/systemd/system/immich-nas-wait.service <<UNIT
+[Unit]
+Description=Attente du stockage ${STORAGE_ID} (photos Immich) avant les guests
+After=network-online.target pve-cluster.service
+Wants=network-online.target
+Before=pve-guests.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'for i in \$\$(seq 1 60); do pvesm status --storage ${STORAGE_ID} >/dev/null 2>&1; [ -d "${HOST_DIR}" ] && exit 0; sleep 2; done; exit 1'
+
+[Install]
+WantedBy=multi-user.target
+UNIT
     systemctl daemon-reload
+    systemctl enable immich-nas-wait.service >/dev/null 2>&1
+    info "Service immich-nas-wait installé (avant pve-guests)."
 fi
-mountpoint -q "$MNT" || mount "$MNT" || err "Montage NFS impossible : vérifier les autorisations NFS du dossier dans DSM (IP de l'hôte, Pas de mappage)."
-chown "${CT_ROOT_UID}:${CT_ROOT_UID}" "$MNT" \
-    || err "chown refusé par le NAS : régler le Squash du partage sur « Pas de mappage »."
-info "NFS OK : $(df -h "$MNT" | awk 'NR==2 {print $2" au total, "$4" libres"}')"
 
 # ----- Bind mount dans le CT -----
 if pct config "$VMID" | grep -q "^mp0:.*mp=${MNT}"; then
     info "mp0 déjà configuré."
 else
     pct config "$VMID" | grep -q "^mp0:" && err "mp0 déjà utilisé par autre chose sur le CT ${VMID}."
-    pct set "$VMID" -mp0 "${MNT},mp=${MNT}"
+    pct set "$VMID" -mp0 "${HOST_DIR},mp=${MNT}"
     info "Redémarrage du CT pour activer le montage..."
     pct reboot "$VMID"
     for i in $(seq 1 30); do
@@ -166,7 +168,7 @@ CT_IP=$(pct exec "$VMID" -- hostname -I | awk '{print $1}')
 echo
 info "Immich ${IMMICH_VERSION} prêt sur le CT ${VMID}."
 info "  LAN       : http://${CT_IP}:${IMMICH_PORT}   (admin : ${IMMICH_ADMIN_EMAIL})"
-info "  Photos    : ${NAS_IP}:${NAS_EXPORT} → ${MNT} (hôte) → ${MNT} (CT)"
+info "  Photos    : ${HOST_DIR} (hôte) → ${MNT} (CT)"
 info "  Logs      : pct exec ${VMID} -- docker compose -f /opt/immich/docker-compose.yml logs -f"
 info "  Mise à jour : changer IMMICH_VERSION ici, relancer ce script (lire les notes de version avant)"
 warn "Réserver le bail DHCP ${CT_IP} (CT ${VMID}) sur la box : l'edge pointe sur cette IP."

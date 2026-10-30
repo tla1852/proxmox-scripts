@@ -422,11 +422,12 @@ partage) — couche dans `homelab/immich/setup-app.sh` (relançable seule avec l
 
 - Immich v3.3.5 **épinglé** (compose + `example.env` officiels de la release), ML
   (visages, recherche) sur CPU, Postgres en local dans `/opt/immich/postgres`
-- Photos sur un partage NFS du Synology (`/volume1/immich` par défaut) monté sur
-  l'**hôte** (`/mnt/immich`, fstab, avant le démarrage des guests) puis passé au CT
-  en `mp0` (un CT non privilégié ne monte pas de NFS). Point de montage vide
-  rendu immuable : NAS absent = rien n'est écrit sur l'hôte. Prérequis DSM :
-  NFSv4.1, règle pour l'IP de l'hôte, Lecture/Écriture, Squash « Pas de mappage »
+- Photos dans le dossier `Immich` du stockage NFS Proxmox `nas-partage`
+  (`/mnt/pve/nas-partage/Immich`, surchargeable par `HOST_DIR=`) passé au CT en
+  `mp0` → `/mnt/immich` (un CT non privilégié ne monte pas de NFS). Partage en
+  root squash : pas de chown, le root du CT (uid 100000) écrit grâce au 777.
+  Service hôte `immich-nas-wait` avant `pve-guests` : le démarrage auto du CT
+  attend le montage NFS ; NAS absent = dossier absent = CT non démarré
 - Compte admin créé par l'API au démarrage (pas de « premier arrivé = admin »),
   domaine externe réglé pour les liens de partage. Les comptes des proches se
   créent dans Administration > Utilisateurs (pas d'inscription libre)
