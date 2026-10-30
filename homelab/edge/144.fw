@@ -32,6 +32,9 @@ OUT ACCEPT -dest 192.168.1.15 -p tcp -dport 32400
 # mamour.love (site mariage)
 OUT ACCEPT -dest 192.168.1.88 -p tcp -dport 3000
 
+# Immich (vhost photos.survivalmode.familyds.org)
+OUT ACCEPT -dest 192.168.1.89 -p tcp -dport 2283
+
 # --- Sortant : accès bureau aux services privés (cf. Caddyfile, bloc ACCÈS BUREAU) ---
 # Authelia (portail + forward_auth) et Caddy interne (upstream unique des vhosts
 # *.ts.tlagrange.pro). Ces deux règles donnent à l'edge un chemin vers TOUS les

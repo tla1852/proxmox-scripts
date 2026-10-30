@@ -181,3 +181,9 @@ guac.ts.tlagrange.pro {
 		}
 	}
 }
+
+# ===== Immich (photos) — public, sans Authelia (app mobile + liens de partage) =====
+photos.survivalmode.familyds.org {
+	import prot
+	reverse_proxy 192.168.1.89:2283
+}
