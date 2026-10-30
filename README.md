@@ -413,3 +413,36 @@ web **Studio** (prompt → Claude Code headless → MP4) — couche dans
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-hyperframes.sh)
 ```
+
+## create-lxc-immich.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **[Immich](https://immich.app)**
+(photos et vidéos : sauvegarde depuis le téléphone, comptes des proches, liens de
+partage) — couche dans `homelab/immich/setup-app.sh` (relançable seule avec le VMID) :
+
+- Immich v3.3.5 **épinglé** (compose + `example.env` officiels de la release), ML
+  (visages, recherche) sur CPU, Postgres en local dans `/opt/immich/postgres`
+- Photos sur un partage NFS du Synology (`/volume1/immich` par défaut) monté sur
+  l'**hôte** (`/mnt/immich`, fstab, avant le démarrage des guests) puis passé au CT
+  en `mp0` (un CT non privilégié ne monte pas de NFS). Point de montage vide
+  rendu immuable : NAS absent = rien n'est écrit sur l'hôte. Prérequis DSM :
+  NFSv4.1, règle pour l'IP de l'hôte, Lecture/Écriture, Squash « Pas de mappage »
+- Compte admin créé par l'API au démarrage (pas de « premier arrivé = admin »),
+  domaine externe réglé pour les liens de partage. Les comptes des proches se
+  créent dans Administration > Utilisateurs (pas d'inscription libre)
+- Exposition : `homelab/immich/expose.sh <VMID>` (hôte Proxmox) — vhost public
+  `photos.survivalmode.familyds.org` sur l'edge (CT 144, CrowdSec, **sans
+  Authelia** : l'app mobile et les liens de partage ne la traversent pas) + règle
+  de sortie dans `144.fw`. Ajouts ciblés sur les confs live (diff + confirmation
+  + sauvegarde + rollback)
+- Sauvegarde : `homelab/immich/setup-backup.sh <VMID>` — rclone **crypt** vers
+  Google Drive (`immich-backup`, scope `drive.file`), timer chaque nuit à 03:30 :
+  originaux + dumps Postgres d'Immich (02:00), sans vignettes ni vidéos
+  transcodées ; fichiers supprimés gardés 90 j dans `deleted/<date>`. Quota
+  Google 750 Go/jour : le premier envoi s'étale sur plusieurs nuits. Les deux
+  mots de passe crypt sont affichés une fois : **à ranger immédiatement**
+- Disque 32 Go, RAM 8192 Mo, 4 cœurs
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-immich.sh)
+```
