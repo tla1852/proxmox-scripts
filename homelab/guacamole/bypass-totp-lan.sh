@@ -5,6 +5,10 @@
 # À lancer DANS le LXC Guacamole, en root :
 #   pct exec <VMID> -- bash /root/bypass-totp-lan.sh
 #
+# Depuis le Shell web de Proxmox, JAMAIS depuis une session Guacamole : le
+# redémarrage coupe la session et tue le script en plein remplacement du
+# conteneur (ancien arrêté, nouveau bloqué en « Created »).
+#
 # Le mot de passe reste demandé partout ; seul le code TOTP saute pour :
 #   - le LAN 192.168.1.0/24, SAUF l'edge (.68, accès bureau) et le Caddy
 #     interne (.72) ;
@@ -31,7 +35,10 @@ die()  { echo -e "\e[31m[x]\e[0m $*" >&2; exit 1; }
 cd "${APP_DIR}" 2>/dev/null && [[ -f docker-compose.yml ]] || die "${APP_DIR}/docker-compose.yml introuvable : mauvais conteneur ?"
 grep -q '^      TOTP_ENABLED: "true"' docker-compose.yml || die "TOTP non activé dans docker-compose.yml : rien à contourner."
 
-cp docker-compose.yml docker-compose.yml.avant-bypass-totp
+# La sauvegarde garde l'état d'avant le PREMIER passage : un second lancement
+# ne doit pas l'écraser avec un compose déjà modifié.
+[[ -f docker-compose.yml.avant-bypass-totp ]] || cp docker-compose.yml docker-compose.yml.avant-bypass-totp
+cp docker-compose.yml docker-compose.yml.tmp-bypass-totp
 BYPASS="${BYPASS}" REGEX="${CADDY_INTERNE_REGEX}" awk '
     /^      (TOTP_BYPASS_HOSTS|REMOTE_IP_VALVE_ENABLED|PROXY_ALLOWED_IPS_REGEX):/ { next }
                                   { print }
@@ -40,13 +47,15 @@ BYPASS="${BYPASS}" REGEX="${CADDY_INTERNE_REGEX}" awk '
         print "      REMOTE_IP_VALVE_ENABLED: \"true\""
         print "      PROXY_ALLOWED_IPS_REGEX: '\''" ENVIRON["REGEX"] "'\''"
     }
-' docker-compose.yml.avant-bypass-totp > docker-compose.yml
+' docker-compose.yml.tmp-bypass-totp > docker-compose.yml
 
 grep -q '^      TOTP_BYPASS_HOSTS:' docker-compose.yml && docker compose config -q \
-    || { cp docker-compose.yml.avant-bypass-totp docker-compose.yml; die "docker-compose.yml : modification invalide, fichier restauré."; }
+    || { cp docker-compose.yml.tmp-bypass-totp docker-compose.yml; die "docker-compose.yml : modification invalide, fichier restauré."; }
+rm -f docker-compose.yml.tmp-bypass-totp
 
 info "Redémarrage de Guacamole (sessions en cours coupées)"
-docker compose up -d guacamole >/dev/null
+# Ignorer SIGHUP : une coupure du terminal ne doit pas laisser compose à mi-chemin.
+nohup docker compose up -d guacamole >/dev/null 2>&1 </dev/null
 
 for _ in $(seq 1 60); do
     [[ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/ || true)" == "200" ]] && break

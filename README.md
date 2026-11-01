@@ -354,7 +354,7 @@ Thème sombre (Guacamole n'en a pas en natif) : `homelab/guacamole/theme-sombre.
 à lancer dans le LXC — fabrique une extension CSS chargée par le serveur.
 
 Pas de code TOTP à la maison ni sur le tailnet : `homelab/guacamole/bypass-totp-lan.sh`,
-à lancer dans le LXC — `totp-bypass-hosts` sur le LAN (hors edge .68 et Caddy
+à lancer dans le LXC **depuis le Shell web Proxmox** (pas via Guacamole) — `totp-bypass-hosts` sur le LAN (hors edge .68 et Caddy
 interne .72) et `100.64.0.0/10`, valve RemoteIp pour lire la vraie IP client.
 Le mot de passe reste demandé ; depuis le bureau (edge), TOTP toujours exigé.
 
