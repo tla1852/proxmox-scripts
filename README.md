@@ -419,6 +419,50 @@ web **Studio** (prompt → Claude Code headless → MP4) — couche dans
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-hyperframes.sh)
 ```
 
+## create-lxc-vulnwatch.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **vulnwatch** (repo privé
+`tla1852/vulnwatch`) : veille CVE de tous les LXC/VM/conteneurs Docker du nœud,
+avec bouton de mise à jour à distance — couche dans
+`homelab/vulnwatch/setup-app.sh` (relançable avec le VMID : sert aussi de **mise à
+jour** du code, conf conservée) :
+
+- **Inventaire** : API Proxmox avec un token **restreint** (`vulnwatch@pve!scan`,
+  rôle `VulnWatch` = VM.Audit, VM.GuestAgent.Audit, VM.Snapshot,
+  VM.Snapshot.Rollback, Sys.Audit — ni console ni config), CA Proxmox vérifié
+- **Collecte** : agent SSH sur chaque invité (`homelab/vulnwatch/enroll-guests.sh`) :
+  utilisateur `vulnwatch`, clé `restrict,from="<ip vulnwatch>",command=…` et
+  sudoers limité à `/usr/local/sbin/vulnwatch-agent`, qui n'accepte qu'une liste
+  fermée de verbes (`inventory`, `apt-upgrade <pkg>`, `apt-upgrade-all`,
+  `compose-update <projet>`, `image-export <sha256>`). Hôte Proxmox en
+  **lecture seule** (`--host`), VM via `--bundle`
+- **Scan** : Trivy sur un rootfs reconstitué (os-release + base dpkg) et sur un
+  SBOM par image Docker ; nouvelle image détectée par skopeo (digest du tag) ;
+  priorisation CISA KEV + EPSS + exposition (tag Proxmox `public`) : *urgent*,
+  *haute*, *normale*, *surveiller* (pas de correctif). CVE noyau ignorées dans
+  les LXC. Scan quotidien 04:30 (timer systemd) ou à la demande
+- **Mises à jour** : snapshot Proxmox `vw-<date>` avant, journal en direct, rescan
+  après, 2 snapshots gardés, bouton « Restaurer »
+- **Accès** : `homelab/vulnwatch/expose.sh` — vhost Caddy interne
+  `vulnwatch.ts.tlagrange.pro` filtré `remote_ip 100.64.0.0/10` + MagicDNS, **pas
+  d'edge ni d'accès bureau**. L'app refuse tout pair TCP autre que le Caddy interne
+  et tout client hors tailnet, + mot de passe (scrypt, généré à l'install) + CSRF
+- **PC Windows** (remontée seule) : script PowerShell téléchargé depuis l'UI, tâche
+  SYSTEM toutes les 6 h → Windows Update en attente (CVE Microsoft) + logiciels
+  (registre + winget) corrélés aux CVE par CPE + Grype ; correspondances CPE à valider
+  une fois dans l'UI
+- **L5 / Télescope** : push en sens unique d'un résumé (`POST /webhooks/vulnwatch`,
+  secret `SUPERVISION_WEBHOOK_SECRET` lu dans le CT L5) → page lecture seule
+- Disque 24 Go (bases Trivy + Grype), RAM 2048 Mo, 2 cœurs. **Réserver le bail DHCP** du CT (les agents
+  n'acceptent que son IP)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-vulnwatch.sh)
+# puis, sur l'hôte :
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/homelab/vulnwatch/expose.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/homelab/vulnwatch/enroll-guests.sh) all
+```
+
 ## create-lxc-immich.sh
 
 Même base que `create-lxc.sh`, mais déploie en plus **[Immich](https://immich.app)**
