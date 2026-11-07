@@ -138,6 +138,9 @@ esac
 OK=(); KO=(); SKIP=(); NEED=()
 for id in $TARGETS; do
     name=$(pct config "$id" </dev/null | awk '/^hostname:/{print $2}')
+    # vulnwatch lui-même : son utilisateur applicatif s'appelle déjà « vulnwatch » (ne pas lui
+    # donner le sudoers de l'agent). Il est mis à jour par setup-app.sh.
+    [[ "$id" == "$VW_CT" ]] && { SKIP+=("$id/$name (vulnwatch lui-même)"); continue; }
     pct status "$id" </dev/null | grep -q running || { SKIP+=("$id/$name (arrêté)"); continue; }
     pct push "$id" "$BUNDLE" /root/.vulnwatch-agent-install.sh --perms 0700 </dev/null
     set +e
