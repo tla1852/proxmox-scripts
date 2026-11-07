@@ -27,9 +27,18 @@ warn() { echo -e "\e[33m[WARN]\e[0m $*"; }
 command -v pct >/dev/null || err "pct introuvable : ce script doit tourner sur un hôte Proxmox VE."
 [[ $# -ge 1 ]] || err "usage : $0 all | <CTID|nom>... | --host | --bundle"
 
+# IP LAN d'un CT : 1re IPv4 hors bridges Docker (172.16/12) et tailnet (100.64/10),
+# même règle que vulnwatch/proxmox.py:_usable_ip (hostname -I peut lister docker0 en 1er).
+lan_ip() {
+    pct exec "$1" -- hostname -I </dev/null | tr ' ' '\n' \
+      | grep -E '^[0-9]+(\.[0-9]+){3}$' \
+      | grep -vE '^(127\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)' \
+      | head -n1
+}
+
 VW_CT="${VW_CT:-$(pct list | awk '$3 == "vulnwatch" {print $1}')}"
 [[ -n "$VW_CT" ]] || err "CT vulnwatch introuvable (VW_CT=<id> pour le préciser)."
-VW_IP=$(pct exec "$VW_CT" -- hostname -I | awk '{print $1}')
+VW_IP=$(lan_ip "$VW_CT")
 PUBKEY=$(pct exec "$VW_CT" -- cat /var/lib/vulnwatch/.ssh/id_ed25519.pub)
 [[ -n "$VW_IP" && "$PUBKEY" == ssh-ed25519* ]] || err "IP ou clé publique de vulnwatch illisible (CT ${VW_CT})."
 info "vulnwatch : CT ${VW_CT}, ${VW_IP}"
@@ -143,7 +152,7 @@ for id in $TARGETS; do
     pct exec "$id" -- rm -f /root/.vulnwatch-agent-install.sh </dev/null || true
     [[ $rc -eq 0 ]] || continue
     grep -q ATTENTION <<<"$res" && warn "${id}/${name} : $(grep ATTENTION <<<"$res")"
-    ip=$(pct exec "$id" -- hostname -I </dev/null | awk '{print $1}')
+    ip=$(lan_ip "$id")
     if out=$(test_from_vw "$ip"); then OK+=("$id/$name"); else KO+=("$id/$name : ${out}"); fi
 done
 
@@ -156,7 +165,7 @@ if [[ ${#NEED[@]} -gt 0 ]]; then
             name=$(pct config "$id" </dev/null | awk '/^hostname:/{print $2}')
             pct push "$id" "$BUNDLE" /root/.vulnwatch-agent-install.sh --perms 0700 </dev/null
             if pct exec "$id" -- bash /root/.vulnwatch-agent-install.sh --yes </dev/null >/dev/null 2>&1; then
-                ip=$(pct exec "$id" -- hostname -I </dev/null | awk '{print $1}')
+                ip=$(lan_ip "$id")
                 if out=$(test_from_vw "$ip"); then OK+=("$id/$name"); else KO+=("$id/$name : ${out}"); fi
             else
                 KO+=("$id/$name : install avec paquets échouée")
