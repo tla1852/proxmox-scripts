@@ -135,6 +135,16 @@ all)
     done ;;
 esac
 
+# pct push peut écrire un fichier VIDE sans erreur (disque plein dans l'invité) : vérifier la taille.
+push_bundle() { # <ct>
+    local want got
+    pct push "$1" "$BUNDLE" /root/.vulnwatch-agent-install.sh --perms 0700 </dev/null || return 1
+    want=$(stat -c %s "$BUNDLE")
+    got=$(pct exec "$1" -- stat -c %s /root/.vulnwatch-agent-install.sh </dev/null 2>/dev/null || echo 0)
+    [[ "$got" == "$want" ]] || { pct exec "$1" -- rm -f /root/.vulnwatch-agent-install.sh </dev/null || true; return 1; }
+}
+diskinfo() { pct exec "$1" -- df -h / </dev/null 2>/dev/null | awk 'NR==2{print $5" utilisé, "$4" libre"}'; }
+
 OK=(); KO=(); SKIP=(); NEED=()
 for id in $TARGETS; do
     name=$(pct config "$id" </dev/null | awk '/^hostname:/{print $2}')
@@ -142,10 +152,11 @@ for id in $TARGETS; do
     # donner le sudoers de l'agent). Il est mis à jour par setup-app.sh.
     [[ "$id" == "$VW_CT" ]] && { SKIP+=("$id/$name (vulnwatch lui-même)"); continue; }
     pct status "$id" </dev/null | grep -q running || { SKIP+=("$id/$name (arrêté)"); continue; }
-    pct push "$id" "$BUNDLE" /root/.vulnwatch-agent-install.sh --perms 0700 </dev/null
+    push_bundle "$id" || { KO+=("$id/$name : copie de l'installeur tronquée (disque plein ? $(diskinfo "$id"))"); continue; }
     set +e
     res=$(pct exec "$id" -- bash /root/.vulnwatch-agent-install.sh </dev/null 2>&1); rc=$?
     set -e
+    [[ $rc -eq 0 ]] && ! grep -q '^AGENT_OK' <<<"$res" && rc=5   # sortie 0 sans AGENT_OK = installeur pas allé au bout
     if [[ $rc -eq 4 ]]; then
         NEED+=("$id"); warn "${id}/${name} : ${res}"
     elif [[ $rc -eq 3 ]]; then
@@ -168,8 +179,8 @@ if [[ ${#NEED[@]} -gt 0 ]]; then
     if [[ "$r" =~ ^[oOyY]$ ]]; then
         for id in "${NEED[@]}"; do
             name=$(pct config "$id" </dev/null | awk '/^hostname:/{print $2}')
-            pct push "$id" "$BUNDLE" /root/.vulnwatch-agent-install.sh --perms 0700 </dev/null
-            if pct exec "$id" -- bash /root/.vulnwatch-agent-install.sh --yes </dev/null >/dev/null 2>&1; then
+            push_bundle "$id" || { KO+=("$id/$name : copie de l'installeur tronquée (disque plein ? $(diskinfo "$id"))"); continue; }
+            if pct exec "$id" -- bash /root/.vulnwatch-agent-install.sh --yes </dev/null 2>&1 | grep -q '^AGENT_OK'; then
                 ip=$(lan_ip "$id")
                 if out=$(test_from_vw "$ip"); then OK+=("$id/$name"); else KO+=("$id/$name : ${out}"); fi
             else
