@@ -94,7 +94,11 @@ fi
 # ----- Secret webhook L5 (push lecture seule) -----
 L5_SECRET=""
 if pct status "$L5_CT" 2>/dev/null | grep -q running; then
-    L5_SECRET=$(pct exec "$L5_CT" -- sed -n 's/^SUPERVISION_WEBHOOK_SECRET=//p' /opt/l5/.env 2>/dev/null | tr -d '"\r' | head -n1 || true)
+    # Même ordre que L5 (routes.ts) : SUPERVISION_WEBHOOK_SECRET, sinon GRAFANA_WEBHOOK_SECRET.
+    for k in SUPERVISION_WEBHOOK_SECRET GRAFANA_WEBHOOK_SECRET; do
+        L5_SECRET=$(pct exec "$L5_CT" -- sed -n "s/^${k}=//p" /opt/l5/.env 2>/dev/null | tr -d '"\r' | head -n1 || true)
+        [[ -n "$L5_SECRET" ]] && break
+    done
 fi
 [[ -n "$L5_SECRET" ]] || { warn "Secret L5 introuvable (CT ${L5_CT}) : push L5 désactivé (VW_L5_* dans /etc/vulnwatch/env)."; L5_URL=""; }
 
