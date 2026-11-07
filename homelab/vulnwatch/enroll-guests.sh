@@ -18,6 +18,7 @@
 # Idempotent. Variables : VW_CT (CTID de vulnwatch, sinon trouvé par hostname « vulnwatch »).
 
 set -euo pipefail
+trap 'echo -e "\e[31m[ERREUR]\e[0m ligne ${LINENO} : ${BASH_COMMAND}" >&2' ERR
 
 err()  { echo -e "\e[31m[ERREUR]\e[0m $*" >&2; exit 1; }
 info() { echo -e "\e[32m[INFO]\e[0m $*"; }
@@ -33,7 +34,7 @@ lan_ip() {
     pct exec "$1" -- hostname -I </dev/null | tr ' ' '\n' \
       | grep -E '^[0-9]+(\.[0-9]+){3}$' \
       | grep -vE '^(127\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|100\.(6[4-9]|[7-9][0-9]|1[01][0-9]|12[0-7])\.)' \
-      | head -n1
+      | head -n1 || true
 }
 
 VW_CT="${VW_CT:-$(pct list | awk '$3 == "vulnwatch" {print $1}')}"
@@ -153,6 +154,7 @@ for id in $TARGETS; do
     [[ $rc -eq 0 ]] || continue
     grep -q ATTENTION <<<"$res" && warn "${id}/${name} : $(grep ATTENTION <<<"$res")"
     ip=$(lan_ip "$id")
+    [[ -n "$ip" ]] || { KO+=("$id/$name : aucune IP LAN (hostname -I : $(pct exec "$id" -- hostname -I </dev/null))"); continue; }
     if out=$(test_from_vw "$ip"); then OK+=("$id/$name"); else KO+=("$id/$name : ${out}"); fi
 done
 
