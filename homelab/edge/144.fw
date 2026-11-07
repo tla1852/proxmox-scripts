@@ -9,6 +9,8 @@ IN ACCEPT -p tcp -dport 80
 IN ACCEPT -p tcp -dport 443
 IN ACCEPT -p udp -dport 443
 IN ACCEPT -p udp -dport 68
+# vulnwatch (CT 132) : agent SSH à commande forcée, depuis vulnwatch SEULEMENT
+IN ACCEPT -source 192.168.1.3 -p tcp -dport 22 -log nolog
 
 # --- Sortant : services réseau de base ---
 OUT ACCEPT -p udp -dport 67
