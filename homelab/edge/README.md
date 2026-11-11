@@ -16,7 +16,7 @@ RUN xcaddy build --with github.com/hslatman/caddy-crowdsec-bouncer
 FROM caddy:2.11
 COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 EOF
-docker build -t caddy-crowdsec:2.11 /opt/caddy
+docker compose -f /opt/caddy/docker-compose.yml build   # (Dockerfile versionné dans ce dossier)
 ```
 
 ## Déploiement (sur l'edge, dans /opt/caddy)

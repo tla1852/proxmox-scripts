@@ -1,6 +1,7 @@
 services:
   caddy:
     image: caddy-crowdsec:2.11
+    build: .            # Dockerfile local (xcaddy + bouncer) — rebuild via `compose build --pull`
     container_name: caddy-edge
     restart: unless-stopped
     ports:
