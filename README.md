@@ -496,3 +496,28 @@ partage) — couche dans `homelab/immich/setup-app.sh` (relançable seule avec l
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-immich.sh)
 ```
+
+## create-lxc-siyuan.sh
+
+Même base que `create-lxc.sh`, mais déploie en plus **[SiYuan](https://b3log.org/siyuan)**
+(notes + bases de données, remplaçant Notion après AppFlowy et Anytype) en mode
+serveur web, image officielle `b3log/siyuan` épinglée (v3.8.10) :
+
+- `/opt/siyuan/docker-compose.yml`, `serve --workspace=/siyuan/workspace/`,
+  port **6806** sur le LAN (TLS terminé par Caddy)
+- **Code d'accès** (écran de verrouillage) généré dans `/opt/siyuan/.env` (600),
+  affiché en fin de script — seule auth applicative
+- Données : `/opt/siyuan/workspace` (bind mount, UID 1000) = **tout** SiYuan, à sauvegarder
+- Pas d'abonnement : pas de sync S3/WebDAV (option PRO payante) → sur mobile,
+  interface web dans le navigateur via le tailnet
+- API HTTP officielle (`Authorization: Token <jeton>`, jeton dans Paramètres →
+  À propos) pour n8n / boox-sync / Claude
+- Exposition : `homelab/siyuan/expose.sh` (hôte Proxmox, `SIYUAN_CT=<vmid>`) —
+  vhost Caddy interne `siyuan.ts.tlagrange.pro` → `<ip>:6806` + extra-record
+  MagicDNS, option accès bureau (edge + Authelia + CNAME Gandi). Ajouts ciblés
+  sur les confs live (diff + confirmation + sauvegarde + rollback)
+- Disque 16 Go, RAM 2048 Mo, 2 cœurs
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-siyuan.sh)
+```
