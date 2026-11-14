@@ -243,6 +243,32 @@ bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main
 l'`ANON_KEY` à mettre dans l'app Expo (`EXPO_PUBLIC_SUPABASE_ANON_KEY`).
 Accès Postgres direct via le pooler Supavisor : user `postgres.your-tenant-id`.
 
+## create-lxc-vacation-v3.sh
+
+Même base que `create-lxc.sh`, mais déploie un **Supabase self-hosted de dev**
+pour [tla1852/vacation-v3](https://github.com/tla1852/vacation-v3) (appli de
+voyage entre amis gamifiée, PWA) :
+
+- Compose officiel **épinglé** sur la release `self-hosted/v0.8.4` (passerelle
+  Envoy, Postgres 17), clone sparse dans `/opt/vacation-v3/supabase`
+- Secrets générés par l'outil upstream `utils/generate-keys.sh --update-env`
+- **Mailpit** en override compose (`docker-compose.mailpit.yml`, port 8025),
+  UI protégée par basic auth (mêmes identifiants que Studio) : reçoit les
+  **liens magiques** en dev. `SMTP_USER`/`SMTP_PASS` vides (piège GoTrue/gomail)
+- `SITE_URL` demandé (défaut : Vite sur claude-dev `http://192.168.1.85:5173`),
+  redirections autorisées : cette URL, `localhost:5173`, `<ip>:8080`
+- **Pas de migration au boot** : le schéma est poussé depuis le poste de dev
+  avec `supabase db push --db-url` (user pooler `postgres.vacation-v3`)
+- Disque 24 Go, RAM conseillée 6144 Mo
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/create-lxc-vacation-v3.sh)
+```
+
+À la fin, le script affiche `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` à
+copier dans `apps/web/.env.local`. Instance de dev en HTTP clair : LAN/tailnet
+uniquement.
+
 ⚠️ Réseau interne / tailnet uniquement (HTTP clair), jamais public-facing en
 l'état. Dès la bêta : sauvegardes Postgres externalisées hors homelab.
 
