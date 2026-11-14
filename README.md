@@ -257,6 +257,9 @@ voyage entre amis gamifiée, PWA) :
   **liens magiques** en dev. `SMTP_USER`/`SMTP_PASS` vides (piège GoTrue/gomail)
 - `SITE_URL` demandé (défaut : Vite sur claude-dev `http://192.168.1.85:5173`),
   redirections autorisées : cette URL, `localhost:5173`, `<ip>:8080`
+- **Gabarits de mail en français** (lien + code à 6 chiffres) : un nginx
+  (`supabase-mail-templates`) sert `/opt/vacation-v3/mail-templates` à GoTrue ;
+  le dossier est rempli depuis le poste de dev par `pnpm mail:deploy`
 - **Pas de migration au boot** : le schéma est poussé depuis le poste de dev
   avec `supabase db push --db-url` (user pooler `postgres.vacation-v3`)
 - Disque 24 Go, RAM conseillée 6144 Mo
@@ -271,6 +274,13 @@ uniquement.
 
 ⚠️ Réseau interne / tailnet uniquement (HTTP clair), jamais public-facing en
 l'état. Dès la bêta : sauvegardes Postgres externalisées hors homelab.
+
+`update-lxc-vacation-v3.sh <VMID>` remet à niveau la surcouche compose d'un CT
+existant (gabarits de mail), sans toucher au `.env` ni aux données :
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/tla1852/proxmox-scripts/main/update-lxc-vacation-v3.sh) 111
+```
 
 ## create-lxc-supervision.sh
 

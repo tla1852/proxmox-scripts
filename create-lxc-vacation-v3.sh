@@ -133,6 +133,8 @@ SUPABASE_TAG="self-hosted/v0.8.4"        # release self-hosted épinglée (2026-
 MAILPIT_IMAGE="axllent/mailpit:v1.33.1"
 API_PORT="8000"                          # passerelle Envoy (API + Studio)
 MAILPIT_PORT="8025"
+NGINX_IMAGE="nginx:1.29-alpine"          # sert les gabarits de mail à GoTrue
+MAIL_TEMPLATES_DIR="${APP_DIR}/mail-templates"   # rempli par `pnpm mail:deploy` (repo vacation-v3)
 
 APP_IP=$(pct exec "$VMID" -- hostname -I | awk '{print $1}')
 
@@ -171,8 +173,11 @@ CLONE
 info "Génération du .env (secrets via utils/generate-keys.sh upstream)..."
 pct exec "$VMID" -- env SUPABASE_DIR="$SUPABASE_DIR" APP_IP="$APP_IP" API_PORT="$API_PORT" \
     SITE_URL="$SITE_URL" DASH_USER="$DASH_USER" DASH_PASS="$DASH_PASS" \
-    MAILPIT_IMAGE="$MAILPIT_IMAGE" MAILPIT_PORT="$MAILPIT_PORT" bash -s <<'ENVCONF'
+    MAILPIT_IMAGE="$MAILPIT_IMAGE" MAILPIT_PORT="$MAILPIT_PORT" \
+    NGINX_IMAGE="$NGINX_IMAGE" MAIL_TEMPLATES_DIR="$MAIL_TEMPLATES_DIR" ADMIN_USER="$ADMIN_USER" bash -s <<'ENVCONF'
 set -euo pipefail
+# Gabarits de mail : dossier écrit par l'admin (scp depuis claude-dev), lu par nginx
+install -d -o "$ADMIN_USER" -g "$ADMIN_USER" -m 755 "$MAIL_TEMPLATES_DIR"
 cd "$SUPABASE_DIR"
 cp .env.example .env
 chmod 600 .env
@@ -227,6 +232,29 @@ services:
       MP_SMTP_AUTH_ALLOW_INSECURE: "1"
       MP_UI_AUTH: "\${MAILPIT_UI_AUTH}"
       MP_MAX_MESSAGES: "500"
+
+  # Gabarits de mail en français (code à 6 chiffres + lien). GoTrue ne lit que
+  # des URL ; s'il n'obtient pas le fichier, il retombe sur son gabarit anglais.
+  mail-templates:
+    container_name: supabase-mail-templates
+    image: ${NGINX_IMAGE}
+    restart: unless-stopped
+    volumes:
+      - ${MAIL_TEMPLATES_DIR}:/usr/share/nginx/html:ro
+
+  auth:
+    environment:
+      GOTRUE_MAILER_OTP_EXP: "3600"
+      GOTRUE_MAILER_TEMPLATES_MAGIC_LINK: http://mail-templates/magic_link.html
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://mail-templates/confirmation.html
+      GOTRUE_MAILER_TEMPLATES_INVITE: http://mail-templates/invite.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://mail-templates/recovery.html
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://mail-templates/email_change.html
+      GOTRUE_MAILER_SUBJECTS_MAGIC_LINK: "Ton code de connexion"
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "Confirme ton adresse"
+      GOTRUE_MAILER_SUBJECTS_INVITE: "Tu es invité·e à un voyage"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Ton code de connexion"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Confirme ta nouvelle adresse"
 YML
 set_env COMPOSE_FILE "docker-compose.yml:docker-compose.mailpit.yml"
 ENVCONF
@@ -266,6 +294,8 @@ echo  "    VITE_SUPABASE_URL=http://${APP_IP}:${API_PORT}"
 echo  "    VITE_SUPABASE_ANON_KEY=${ANON_KEY}"
 info "  Migrations depuis le poste de dev (pooler Supavisor, mode session) :"
 echo  "    supabase db push --db-url 'postgresql://postgres.vacation-v3:<POSTGRES_PASSWORD>@${APP_IP}:5432/postgres?sslmode=disable'"
+info "  Gabarits de mail (FR, code à 6 chiffres) depuis le poste de dev :"
+echo  "    LXC=${ADMIN_USER}@${APP_IP} pnpm mail:deploy"
 info "  POSTGRES_PASSWORD, SERVICE_ROLE_KEY & co : ${SUPABASE_DIR}/.env (600 root) — sudo grep ... dans le CT ${VMID}"
 info "  Logs : pct exec ${VMID} -- bash -c 'cd ${SUPABASE_DIR} && docker compose logs -f auth api-gw'"
 echo
