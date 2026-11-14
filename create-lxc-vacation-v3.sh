@@ -233,7 +233,15 @@ ENVCONF
 unset DASH_PASS DASH_PASS2
 
 info "Pull + démarrage de la stack (long au premier run : ~12 images)..."
-pct exec "$VMID" -- bash -c "cd '$SUPABASE_DIR' && docker compose pull -q && docker compose up -d"
+pct exec "$VMID" -- bash -c "cd '$SUPABASE_DIR' && docker compose pull -q"
+# Premier boot : l'init de Postgres peut dépasser le healthcheck de supabase-db,
+# compose abandonne alors les services dépendants. On relance, la base est déjà prête.
+for i in 1 2 3; do
+    pct exec "$VMID" -- bash -c "cd '$SUPABASE_DIR' && docker compose up -d" && break
+    [[ $i -eq 3 ]] && err "Stack incomplète après 3 essais — vérifier : docker compose logs db"
+    info "Démarrage incomplet (init Postgres lente), nouvel essai dans 20 s..."
+    sleep 20
+done
 
 info "Attente de PostgreSQL + du schéma auth (GoTrue)..."
 for i in $(seq 1 60); do
