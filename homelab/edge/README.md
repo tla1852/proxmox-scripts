@@ -54,8 +54,12 @@ docker exec crowdsec cscli decisions list
 
 Le poste du bureau ne peut pas rejoindre le tailnet. Les 19 vhosts
 `*.ts.tlagrange.pro` sont donc aussi servis par l'edge, **uniquement** pour l'IP
-publique du bureau (`46.255.204.70`, partagée) et derrière **Authelia**
-(mot de passe + TOTP, `create-lxc-authelia.sh`).
+publique du bureau (`46.255.204.70`, partagée), la sortie du VPN entreprise
+(`85.31.223.75`) — et, pour le télétravail avec
+le poste du bureau, l'IP publique maison (`176.151.8.114`) + le LAN
+(`192.168.1.0/24`, cas du NAT loopback Bbox) — et derrière **Authelia**
+(mot de passe + TOTP, `create-lxc-authelia.sh`). L'IP maison peut changer :
+la reporter dans le snippet `bureau_only` du `Caddyfile` si besoin.
 
 ```
 bureau ─▶ edge (IP bureau ? sinon abort) ─▶ Authelia (session 2FA ? sinon portail)

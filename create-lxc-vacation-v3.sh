@@ -146,10 +146,14 @@ read -rp "Login Studio + Mailpit [supabase] : " DASH_USER; DASH_USER="${DASH_USE
 while true; do
     read -rsp "Mot de passe Studio + Mailpit : " DASH_PASS; echo
     read -rsp "Confirmation : " DASH_PASS2; echo
-    [[ -n "$DASH_PASS" && "$DASH_PASS" == "$DASH_PASS2" ]] && break
-    echo "Mots de passe vides ou différents, on recommence."
+    if [[ -z "$DASH_PASS" || "$DASH_PASS" != "$DASH_PASS2" ]]; then
+        echo "Mots de passe vides ou différents, on recommence."
+    elif [[ "$DASH_PASS" == *[[:space:]:\$]* ]]; then
+        echo "Ni espace, ni ':', ni '\$' (basic auth Mailpit + interpolation compose), on recommence."
+    else
+        break
+    fi
 done
-[[ "$DASH_PASS" != *[[:space:]:\$]* ]] || err "Le mot de passe ne doit contenir ni espace, ni ':', ni '$' (basic auth Mailpit + interpolation compose)."
 
 info "Récupération du compose Supabase officiel (${SUPABASE_TAG})..."
 pct exec "$VMID" -- env APP_DIR="$APP_DIR" SUPABASE_DIR="$SUPABASE_DIR" SUPABASE_TAG="$SUPABASE_TAG" bash -s <<'CLONE'

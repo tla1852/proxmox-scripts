@@ -115,9 +115,16 @@ mamour.love {
 # ═════════════════════════════════════════════════════════════════════════════
 # ACCÈS BUREAU — services privés *.ts.tlagrange.pro hors tailnet
 # ═════════════════════════════════════════════════════════════════════════════
-# Le poste du bureau ne peut pas rejoindre le tailnet. Depuis l'IP publique du
-# bureau UNIQUEMENT (46.255.204.70, partagée -> second facteur obligatoire) :
-#   1. IP source != bureau        -> connexion coupée (abort), rien n'est servi
+# Le poste du bureau ne peut pas rejoindre le tailnet. Depuis ces IP UNIQUEMENT
+# (second facteur obligatoire dans tous les cas) :
+#   - 46.255.204.70   IP publique du bureau (fixe, partagée)
+#   - 85.31.223.75    sortie du VPN entreprise (poste du bureau en télétravail)
+#   - 176.151.8.114   IP publique maison (Bbox) : poste du bureau en télétravail
+#   - 192.168.1.0/24  LAN maison : même cas si le NAT loopback de la Bbox
+#                     conserve l'IP LAN source au lieu de l'IP publique
+#   L'IP maison n'est pas garantie fixe : si la Bbox en change, mettre à jour
+#   ici (DDNS survivalmode.familyds.org = IP courante).
+#   1. IP source hors liste        -> connexion coupée (abort), rien n'est servi
 #   2. pas de session Authelia    -> redirection vers auth.ts.tlagrange.pro
 #                                    (mot de passe + TOTP, CT authelia)
 #   3. session valide             -> relais vers le Caddy interne (LXC 100, .72)
@@ -128,7 +135,7 @@ mamour.love {
 # `route` impose l'ordre : filtre IP AVANT forward_auth (sinon Authelia serait
 # sollicité par n'importe quelle IP).
 (bureau_only) {
-	@hors_bureau not remote_ip 46.255.204.70
+	@hors_bureau not remote_ip 46.255.204.70 85.31.223.75 176.151.8.114 192.168.1.0/24
 	abort @hors_bureau
 }
 
