@@ -265,7 +265,7 @@ info "  À mettre dans apps/web/.env.local sur le poste de dev :"
 echo  "    VITE_SUPABASE_URL=http://${APP_IP}:${API_PORT}"
 echo  "    VITE_SUPABASE_ANON_KEY=${ANON_KEY}"
 info "  Migrations depuis le poste de dev (pooler Supavisor, mode session) :"
-echo  "    supabase db push --db-url 'postgresql://postgres.vacation-v3:<POSTGRES_PASSWORD>@${APP_IP}:5432/postgres'"
+echo  "    supabase db push --db-url 'postgresql://postgres.vacation-v3:<POSTGRES_PASSWORD>@${APP_IP}:5432/postgres?sslmode=disable'"
 info "  POSTGRES_PASSWORD, SERVICE_ROLE_KEY & co : ${SUPABASE_DIR}/.env (600 root) — sudo grep ... dans le CT ${VMID}"
 info "  Logs : pct exec ${VMID} -- bash -c 'cd ${SUPABASE_DIR} && docker compose logs -f auth api-gw'"
 echo
